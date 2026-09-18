@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import type { Session, User } from "@supabase/supabase-js";
 
 export interface AuthState {
@@ -71,6 +72,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setDisplayName(null);
         // Deferred call (deadlock trap)
         setTimeout(() => loadIdentity(s.user!.id), 0);
+        // Associate a verified OAuth/email identity with any existing profile
+        // by email (least privilege — never grants roles).
+        setTimeout(() => void api.linkAccount().catch(() => {}), 400);
       } else {
         setStaffRole(null);
         setCustomerId(null);

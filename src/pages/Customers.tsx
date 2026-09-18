@@ -4,11 +4,12 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCustomers } from "@/hooks/useData";
 import { Customer360 } from "@/components/customer-360";
+import { CustomerJourney, EffortScore } from "@/components/customer-panels";
 import { PageHeader, SkeletonRows } from "@/components/widgets";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { inr, pct } from "@/lib/format";
-import type { Customer, Order, Payment, Refund, Ticket, CaseRow } from "@/lib/types";
+import type { Customer, Order, Payment, Refund, Ticket, CaseRow, Escalation } from "@/lib/types";
 
 export default function Customers() {
   const { data: customers, isLoading } = useCustomers();
@@ -119,7 +120,23 @@ export function CustomerDetail() {
     enabled: Boolean(id),
   });
 
+  const { data: escalations } = useQuery({
+    queryKey: ["customer-escalations", id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("resolveai_escalations")
+        .select("*, resolveai_cases(customer_id)")
+        .order("created_at", { ascending: false })
+        .limit(100);
+      return ((data ?? []) as unknown as (Escalation & { resolveai_cases: { customer_id: string } })[]).filter(
+        (e) => e.resolveai_cases?.customer_id === id,
+      );
+    },
+    enabled: Boolean(id),
+  });
+
   if (isLoading || !customer) return <SkeletonRows rows={5} />;
+  const escs = (escalations ?? []) as Escalation[];
   return (
     <div>
       <PageHeader
@@ -135,6 +152,24 @@ export function CustomerDetail() {
         tickets={tickets ?? []}
         cases={cases ?? []}
       />
+      <div className="mt-4 grid gap-4 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <CustomerJourney
+            orders={orders ?? []}
+            payments={payments ?? []}
+            refunds={refunds ?? []}
+            tickets={tickets ?? []}
+            cases={cases ?? []}
+            escalations={escs}
+          />
+        </div>
+        <EffortScore
+          tickets={tickets ?? []}
+          cases={cases ?? []}
+          escalations={escs}
+          refunds={refunds ?? []}
+        />
+      </div>
     </div>
   );
 }

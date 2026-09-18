@@ -4,6 +4,9 @@ import { evaluateAllGates, evaluateAuthorityGate } from "../../supabase/function
 import { computeEscalation } from "../../supabase/functions/resolveai/_shared/engine/escalation";
 import { detectContradictions, matchFingerprint, evaluateCircuitBreaker } from "../../supabase/functions/resolveai/_shared/engine/safety";
 import { evaluatePolicy } from "../../supabase/functions/resolveai/_shared/engine/policy";
+import { computeCustomerEffort } from "../../supabase/functions/resolveai/_shared/engine/effort";
+import { assessUncertainty } from "../../supabase/functions/resolveai/_shared/engine/uncertainty";
+import { computeTrend } from "../../supabase/functions/resolveai/_shared/engine/trends";
 
 describe("intent classification (deterministic)", () => {
   it("detects duplicate-charge billing complaint", () => {
@@ -302,5 +305,56 @@ describe("fallback response", () => {
       escalated: true,
     });
     expect(r.toLowerCase()).not.toContain("refund of");
+  });
+});
+
+describe("customer effort score (computed from real records)", () => {
+  it("scores a single-contact resolved case as LOW effort", () => {
+    const r = computeCustomerEffort({ contacts: 1, transfers: 0, infoRequests: 0, resolutionHours: 2, failedActions: 0, escalations: 0 });
+    expect(r.score).toBeLessThanOrEqual(1.6);
+    expect(r.label).toBe("LOW");
+  });
+
+  it("scores a multi-contact, escalated, failed-action case as HIGH effort", () => {
+    const r = computeCustomerEffort({ contacts: 5, transfers: 2, infoRequests: 3, resolutionHours: 72, failedActions: 3, escalations: 2 });
+    expect(r.score).toBeGreaterThanOrEqual(3.6);
+    expect(r.label).toBe("VERY HIGH");
+    expect(r.factors.some((f) => f.name === "Failed actions")).toBe(true);
+  });
+});
+
+describe("uncertainty assessment", () => {
+  it("blocks auto-resolution when evidence is conflicting", () => {
+    const u = assessUncertainty({ aiConfidence: 0.9, evidenceCount: 4, expectedEvidence: 5, contradictions: 1, policyCertain: true, actionRisk: "low" });
+    expect(u.blockAutoResolution).toBe(true);
+    expect(u.level).toBe("HIGH");
+    expect(u.recommendHumanReview).toBe(true);
+  });
+
+  it("blocks auto-resolution when confidence is below threshold", () => {
+    const u = assessUncertainty({ aiConfidence: 0.45, evidenceCount: 5, expectedEvidence: 5, contradictions: 0, policyCertain: true, actionRisk: "low" });
+    expect(u.blockAutoResolution).toBe(true);
+    expect(u.reason).toContain("below the safe threshold");
+  });
+
+  it("reports missing evidence when incomplete", () => {
+    const u = assessUncertainty({ aiConfidence: 0.85, evidenceCount: 1, expectedEvidence: 5, contradictions: 0, policyCertain: false, actionRisk: "low" });
+    expect(u.evidenceCompleteness).toBeLessThan(0.5);
+    expect(u.missingEvidence.length).toBeGreaterThan(0);
+  });
+});
+
+describe("recurring / emerging issue detection", () => {
+  it("flags a potential incident when the recent rate climbs sharply", () => {
+    const t = computeTrend({ currentCount: 6, baselineCount: 1, baselineWindowCount: 100, currentWindowCount: 100, affectedCustomers: ["a", "b", "c"], relatedSystems: ["payment-order-sync"] });
+    expect(t.direction).toBe("emerging");
+    expect(t.potentialIncident).toBe(true);
+    expect(t.changePct).toBeGreaterThanOrEqual(40);
+  });
+
+  it("marks stable patterns as stable", () => {
+    const t = computeTrend({ currentCount: 5, baselineCount: 5, baselineWindowCount: 100, currentWindowCount: 100, affectedCustomers: ["a"], relatedSystems: ["logistics"] });
+    expect(t.direction).toBe("stable");
+    expect(t.potentialIncident).toBe(false);
   });
 });

@@ -37,6 +37,11 @@ import {
 } from "lucide-react";
 import { slaRemaining, fmtDate, inr, confidenceLabel, classNames } from "@/lib/format";
 import type { CaseRow, CaseEvent, Escalation, AuditLog, Message } from "@/lib/types";
+import { DecisionTrace, UncertaintyPanel, ContradictionMatrix, SLAIntelligence, HandoffSummary } from "@/components/ops-panels";
+import { ApprovalPanel, VerificationCenter, BreakerMonitor, SimulationPanel } from "@/components/action-center";
+import { RAGQuality, KnowledgeCandidates } from "@/components/knowledge-panels";
+import { InvestigationReplay } from "@/components/replay";
+import { computeCustomerEffort } from "@/lib/engine";
 
 export default function Investigation() {
   const { caseId } = useParams<{ caseId: string }>();
@@ -219,17 +224,39 @@ export default function Investigation() {
               />
             </CardContent>
           </Card>
+
+          <CaseEffortCard caseRow={cs} escalated={Boolean(escalation)} />
+
+          <DecisionTrace caseRow={cs} />
+          <UncertaintyPanel caseRow={cs} />
+          <SLAIntelligence caseRow={cs} />
+          <InvestigationReplay events={(events ?? []) as CaseEvent[]} />
         </div>
 
         {/* Right: evidence + gates + action */}
         <div className="space-y-4 xl:col-span-2">
           <EvidencePanel evidence={(cs.evidence ?? []) as CaseRow["evidence"]} />
+          <ContradictionMatrix contradictions={(cs.contradictions ?? []) as CaseRow["contradictions"]} />
           <div className="grid gap-4 lg:grid-cols-2">
             <HypothesisPanel caseRow={cs} />
             <GateStatus gates={(cs.gates ?? {}) as Record<string, never>} />
           </div>
-          <RAGSources sources={ragSources} />
-          <VerificationPanel verification={cs.verification_result} />
+          <div className="grid gap-4 lg:grid-cols-2">
+            <RAGSources sources={ragSources} />
+            <RAGQuality caseRow={cs} sources={ragSources} />
+          </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <VerificationPanel verification={cs.verification_result} />
+            <VerificationCenter caseRow={cs} />
+          </div>
+          <BreakerMonitor caseRow={cs} />
+
+          {staffRole && (
+            <>
+              <ApprovalPanel caseRow={cs} customerTier={customer?.tier ?? "standard"} />
+              <SimulationPanel customerTier={customer?.tier ?? "standard"} evidenceSources={[...new Set((cs.evidence ?? []).map((e) => e.source))]} />
+            </>
+          )}
 
           {escalation && (
             <div className="grid gap-4 lg:grid-cols-2">
@@ -280,6 +307,9 @@ export default function Investigation() {
             <ResolutionPassport passport={cs.resolution_passport} />
           )}
 
+          <HandoffSummary caseRow={cs} events={(events ?? []) as CaseEvent[]} />
+          <KnowledgeCandidates caseRow={cs} />
+
           <AuditTimeline logs={audit ?? []} limit={12} />
         </div>
       </div>
@@ -293,5 +323,42 @@ function KV({ k, v }: { k: string; v: React.ReactNode }) {
       <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{k}</div>
       <div className="truncate text-[13px] font-medium">{v}</div>
     </div>
+  );
+}
+
+function CaseEffortCard({ caseRow, escalated }: { caseRow: CaseRow; escalated: boolean }) {
+  const repeatContacts = Number((caseRow.customer_history as Record<string, unknown>)?.repeat_contacts ?? 0);
+  const failedActions = (caseRow.action_history ?? []).filter((a) => a.status === "failed").length;
+  const resolved = caseRow.status === "resolved";
+  const resolutionHours = resolved && caseRow.updated_at
+    ? Math.max(1, (new Date(caseRow.updated_at).getTime() - new Date(caseRow.created_at).getTime()) / 3600000)
+    : 1;
+  const r = computeCustomerEffort({
+    contacts: 1 + repeatContacts,
+    transfers: escalated ? 1 : 0,
+    infoRequests: /status|update|when|how long|still|pending/i.test(caseRow.message_text ?? "") ? 1 : 0,
+    resolutionHours,
+    failedActions,
+    escalations: escalated ? 1 : 0,
+  });
+  return (
+    <Card>
+      <CardHeader className="py-3">
+        <CardTitle className="flex items-center justify-between text-sm">
+          Customer Effort (this case)
+          <span className={`text-base font-bold ${r.score >= 3.6 ? "text-danger" : r.score >= 2.6 ? "text-warning" : "text-success"}`}>
+            {r.score.toFixed(1)} / 5
+          </span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-1 p-4 text-xs">
+        {r.factors.map((f) => (
+          <div key={f.name} className="flex items-center justify-between rounded bg-muted/30 px-2 py-1">
+            <span className="text-muted-foreground">{f.name}</span>
+            <span className="font-medium">{f.detail}</span>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
   );
 }

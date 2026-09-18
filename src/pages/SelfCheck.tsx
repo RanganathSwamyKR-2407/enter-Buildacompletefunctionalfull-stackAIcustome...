@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, FlaskConical, CheckCircle2, XCircle } from "lucide-react";
+import { SystemHealth, DemoMode } from "@/components/health-demo";
 
 export default function SelfCheck() {
   const [result, setResult] = useState<SelfCheckResult | null>(null);
@@ -27,7 +28,7 @@ export default function SelfCheck() {
   return (
     <div>
       <PageHeader
-        title="Demo Self-Check"
+        title="Demo Self-Check & System Health"
         subtitle="Runs the three end-to-end demo tracks against real seeded data and asserts their final state."
         actions={
           <Button onClick={() => void run()} disabled={running}>
@@ -36,6 +37,12 @@ export default function SelfCheck() {
           </Button>
         }
       />
+
+      <div className="mb-4 grid gap-4 lg:grid-cols-2">
+        <SystemHealth />
+        <DemoMode />
+      </div>
+
       {error && <div className="mb-4 rounded bg-danger-soft px-3 py-2 text-sm text-danger">{error}</div>}
 
       <div className="space-y-3">

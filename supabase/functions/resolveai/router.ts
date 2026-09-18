@@ -17,7 +17,7 @@
 import { corsHeaders, jsonResponse } from "./_shared/cors.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
 import { db } from "./_shared/db.ts";
-import { resolveCaller, bearerToken } from "./_shared/auth.ts";
+import { resolveCaller, bearerToken, AUTH_SUPABASE_URL, AUTH_ANON_KEY } from "./_shared/auth.ts";
 import { runLifecycle } from "./_shared/lifecycle.ts";
 import { evaluateAllGates } from "./_shared/engine/gates.ts";
 import type { GateInputs } from "./_shared/engine/gates.ts";
@@ -37,8 +37,6 @@ import { emitAudit, emitAnalytics, updateCase } from "./_shared/events.ts";
 
 const BOOT_SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const BOOT_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
-const AUTH_SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
-const AUTH_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 
 async function handleChat(token: string | null, body: Record<string, unknown>): Promise<Response> {
   const caller = await resolveCaller(token);
@@ -629,7 +627,10 @@ async function handleHealth(): Promise<Response> {
 
   // Authentication (sign-in path used by clients)
   try {
-    const res = await fetch(`${AUTH_SUPABASE_URL}/auth/v1/health`, { signal: AbortSignal.timeout(10000) });
+    const res = await fetch(`${AUTH_SUPABASE_URL}/auth/v1/health`, {
+      headers: { apikey: AUTH_ANON_KEY, Authorization: `Bearer ${AUTH_ANON_KEY}` },
+      signal: AbortSignal.timeout(10000),
+    });
     checks.push({
       component: "Authentication",
       status: AUTH_ANON_KEY ? (res.ok ? "HEALTHY" : "DEGRADED") : "FAILED",

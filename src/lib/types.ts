@@ -248,6 +248,41 @@ export interface AuditLog {
   created_at: string;
 }
 
+export interface AgentAction {
+  id: string;
+  case_id: string;
+  agent_key: string;
+  action: string;
+  status: string;
+  input: Record<string, unknown>;
+  output: Record<string, unknown>;
+  error: string | null;
+  created_at: string;
+}
+
+export interface ActionVerification {
+  id: string;
+  action_id: string;
+  case_id: string;
+  checks: { name: string; expected: unknown; actual: unknown; pass: boolean }[];
+  overall: string;
+  created_at: string;
+}
+
+export interface KnowledgeCandidate {
+  id: string;
+  case_id: string;
+  problem: string;
+  root_cause: string | null;
+  resolution: string;
+  supporting_cases: string[];
+  confidence: number;
+  status: string;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+}
+
 export interface Conversation {
   id: string;
   customer_id: string;

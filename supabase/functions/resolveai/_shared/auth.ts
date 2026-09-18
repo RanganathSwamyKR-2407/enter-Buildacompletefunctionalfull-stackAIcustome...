@@ -5,8 +5,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
 import { db } from "./db.ts";
 
-const AUTH_SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
-const AUTH_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+export const AUTH_SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
+export const AUTH_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 
 export interface CallerInfo {
   userId: string | null;

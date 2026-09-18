@@ -27,10 +27,11 @@ export interface SelfCheckResult {
 
 export const api = {
   /** Send a customer message → full autonomous lifecycle (returns the final reply). */
-  chat: (message: string, customerId?: string) =>
-    invoke<ChatResult>({ route: "chat", message, customer_id: customerId }),
+  chat: (message: string, customerId?: string, fast?: boolean) =>
+    invoke<ChatResult>({ route: "chat", message, customer_id: customerId, fast: fast === true }),
 
-  /** Run a staff-initiated gated action on a case. */
+  /** Run a staff-initiated gated action on a case. Supports human approval:
+   * pass `human_decision: "approve" | "reject"` and optionally a modified amount. */
   action: (payload: {
     action: string;
     case_id: string;
@@ -39,7 +40,20 @@ export const api = {
     amount?: number;
     note?: string;
     content?: string;
-  }) => invoke<{ ok: boolean; action: string; result: unknown; verification: unknown }>({ route: "actions", ...payload }),
+    human_decision?: "approve" | "reject";
+  }) =>
+    invoke<{
+      ok: boolean;
+      action: string;
+      result?: unknown;
+      verification?: unknown;
+      blocked?: boolean;
+      requires_human_approval?: boolean;
+      approvable_by_human?: boolean;
+      gates?: Record<string, unknown>;
+      amount?: number;
+      detail?: string;
+    }>({ route: "actions", ...payload }),
 
   /** Force-escalate a case with a generated Resolution Passport. */
   escalate: (caseId: string) =>
@@ -60,6 +74,24 @@ export const api = {
 
   /** Integration harness for demo tracks A/B/C. */
   selfcheck: () => invoke<SelfCheckResult>({ route: "selfcheck" }),
+
+  /** Knowledge feedback loop: list/create/review knowledge candidates. */
+  knowledgeCandidates: (op: string, payload: Record<string, unknown> = {}) =>
+    invoke<{ ok: boolean; candidates?: unknown[]; candidate?: unknown }>({
+      route: "knowledge_candidates",
+      op,
+      ...payload,
+    }),
+
+  /** Real system-health checks (database, auth, AI, RAG, engine, realtime…). */
+  health: () =>
+    invoke<{ ok: boolean; status: string; checks: { component: string; status: string; detail: string }[] }>({
+      route: "health",
+    }),
+
+  /** Associate a verified OAuth identity with an existing profile by email. */
+  linkAccount: () =>
+    invoke<{ ok: boolean; linked?: boolean; customer_id?: string; detail?: string }>({ route: "link_account" }),
 };
 
 /** Direct DB reads (RLS-scoped). */
