@@ -67,6 +67,28 @@ const NAV = [
   },
 ];
 
+const PANEL_LABELS: [string, string][] = [
+  ["/system-health", "system health"],
+  ["/selfcheck", "the demo self-check"],
+  ["/investigations", "the investigation"],
+  ["/escalations", "escalations"],
+  ["/analytics", "analytics"],
+  ["/incidents", "incident data"],
+  ["/policies", "policy data"],
+  ["/customers", "customer data"],
+  ["/payments", "payments and refunds"],
+  ["/orders", "orders and shipments"],
+  ["/queue", "the complaint queue"],
+  ["/chat", "the customer chat"],
+  ["/audit", "audit events"],
+  ["/profile", "the profile"],
+];
+
+function panelLabel(pathname: string): string | undefined {
+  const match = PANEL_LABELS.find(([prefix]) => pathname.startsWith(prefix));
+  return match ? match[1] : undefined;
+}
+
 const ROLE_LABEL: Record<string, string> = {
   customer: "Customer",
   customer_support_t1: "Tier-1 Agent",
@@ -271,7 +293,9 @@ export function AppShell() {
         </header>
 
         <main className="min-h-0 flex-1 overflow-y-auto p-5">
-          <ErrorBoundary>
+          {/* Keyed by the current route: each panel gets its own error
+              lifecycle, so one panel failing never contaminates another. */}
+          <ErrorBoundary key={location.pathname} label={panelLabel(location.pathname)}>
             <Outlet />
           </ErrorBoundary>
         </main>

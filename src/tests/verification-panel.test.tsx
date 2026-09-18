@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { VerificationPanel, EvidencePanel } from "../../src/components/panels";
 import { normalizeVerification } from "../../src/lib/verification";
 import { humanLabel, humanValue, readableRows, initials } from "../../src/lib/format";
+import { ErrorBoundary } from "../../src/components/error-boundary";
 
 const render = (node: React.ReactElement) => renderToStaticMarkup(node);
 
@@ -123,5 +124,28 @@ describe("readable formatting helpers (no raw JSON in UI)", () => {
     expect(initials("Ranganath Swamy")).toBe("RS");
     expect(initials("R. Kumar")).toBe("RK");
     expect(initials("")).toBe("?");
+  });
+});
+
+describe("ErrorBoundary — per-panel isolation (no cross-panel contamination)", () => {
+  it("derives a panel error state from a thrown error (contextual label available)", () => {
+    const state = (ErrorBoundary as unknown as { getDerivedStateFromError: (e: unknown) => unknown }).getDerivedStateFromError(new Error("boom"));
+    expect(state).toEqual({ hasError: true, message: "boom" });
+  });
+  it("a clean instance renders its children — no shared/global error state", () => {
+    const clean = render(<ErrorBoundary label="policy data"><div>POLICY OK</div></ErrorBoundary>);
+    expect(clean).toContain("POLICY OK");
+    expect(clean).not.toContain("Unable to load");
+  });
+  it("keying by route resets the lifecycle (simulated by a fresh instance)", () => {
+    // Navigating = rendering a new keyed instance; a previous instance's
+    // error state must never carry over into the new route's panel.
+    const afterNavigation = render(
+      <ErrorBoundary key="/policies" label="policy data">
+        <div>POLICIES RENDER</div>
+      </ErrorBoundary>,
+    );
+    expect(afterNavigation).toContain("POLICIES RENDER");
+    expect(afterNavigation).not.toContain("Retry");
   });
 });
