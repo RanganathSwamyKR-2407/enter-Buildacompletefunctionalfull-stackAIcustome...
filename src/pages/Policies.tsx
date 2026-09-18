@@ -66,7 +66,7 @@ export default function Policies() {
                 <div>
                   <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Allowed actions</div>
                   <div className="flex flex-wrap gap-1.5">
-                    {policy.allowed_actions.map((a) => (
+                    {(policy.allowed_actions ?? []).map((a) => (
                       <span key={a} className="rounded bg-brand-soft px-1.5 py-0.5 text-xs font-medium text-brand">{humanLabel(a)}</span>
                     ))}
                   </div>
@@ -75,7 +75,7 @@ export default function Policies() {
                   <div>
                     <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Authority limits</div>
                     <div className="flex flex-wrap gap-1.5">
-                      {Object.entries(policy.authority_limits).map(([k, v]) => (
+                      {Object.entries(policy.authority_limits ?? {}).map(([k, v]) => (
                         <span key={k} className="rounded bg-muted px-1.5 py-0.5 text-xs">
                           {k} ≤ {inr(Number(v))}
                         </span>
@@ -86,7 +86,7 @@ export default function Policies() {
                 <div>
                   <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Conditions</div>
                   <ul className="mt-1 space-y-1">
-                    {Object.entries(policy.conditions).map(([k, v]) => (
+                    {Object.entries(policy.conditions ?? {}).map(([k, v]) => (
                       <li key={k} className="flex items-center gap-1.5 text-[13px]">
                         <span className={v === true ? "text-success" : v === false ? "text-danger" : "text-muted-foreground"}>
                           {v === true ? "✓" : v === false ? "✕" : "•"}
@@ -95,14 +95,14 @@ export default function Policies() {
                         {typeof v === "number" && <span className="text-muted-foreground">(threshold: {v})</span>}
                       </li>
                     ))}
-                    {Object.keys(policy.conditions).length === 0 && <li className="text-xs text-muted-foreground">No conditions defined</li>}
+                    {Object.keys(policy.conditions ?? {}).length === 0 && <li className="text-xs text-muted-foreground">No conditions defined</li>}
                   </ul>
                 </div>
                 <div>
                   <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Restrictions</div>
-                  {policy.restrictions.length > 0 ? (
+                  {(policy.restrictions ?? []).length > 0 ? (
                     <ul className="mt-1 space-y-1">
-                      {policy.restrictions.map((r) => (
+                      {(policy.restrictions ?? []).map((r) => (
                         <li key={r} className="text-[13px]">• {humanLabel(r)}</li>
                       ))}
                     </ul>

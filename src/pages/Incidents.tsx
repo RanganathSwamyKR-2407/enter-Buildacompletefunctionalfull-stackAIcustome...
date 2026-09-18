@@ -56,10 +56,10 @@ export default function Incidents() {
 
       <div className="mt-6 space-y-3">
         <div className="text-sm font-semibold">Proactive customer impact & affected complaints</div>
-        {!data || data.incidents.length === 0 ? (
+        {((data?.incidents ?? []).length) === 0 ? (
           <LoadingState label="No incidents" />
         ) : (
-          data.incidents.map((inc) => (
+          (data?.incidents ?? []).map((inc) => (
             <div key={inc.id} className="rounded-md border p-3">
               <div className="mb-2 text-[13px] font-medium text-muted-foreground">
                 {inc.incident_id} · {inc.name}
