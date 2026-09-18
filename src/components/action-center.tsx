@@ -13,6 +13,7 @@ import {
   AUTHORITY_LIMITS,
 } from "@/lib/engine";
 import type { GateResult, CaseRow, AgentAction, ActionVerification } from "@/lib/types";
+import { asArray } from "@/lib/verification";
 
 // ---------------------------------------------------------------------
 // 2. Human approval / override panel
@@ -26,7 +27,7 @@ export function ApprovalPanel({ caseRow, customerTier }: { caseRow: CaseRow; cus
   const rec = (caseRow.recommended_action ?? {}) as Record<string, unknown>;
   const action = String(rec.action ?? "issue_refund");
   const amount = modifiedAmount ?? (typeof rec.amount === "number" ? rec.amount : 0);
-  const paymentTxn = (caseRow.transaction_ids ?? [])[0];
+  const paymentTxn = asArray(caseRow.transaction_ids)[0];
 
   const propose = () =>
     api.action({
@@ -188,9 +189,9 @@ export function VerificationCenter({ caseRow }: { caseRow: CaseRow }) {
                   )}
                   <span className="ml-auto text-[11px] text-muted-foreground">{fmtDate(a.created_at)}</span>
                 </div>
-                {v && (v.checks ?? []).length > 0 && (
+                {v && asArray(v.checks).length > 0 && (
                   <div className="mt-1 grid gap-x-4 gap-y-0.5 text-xs text-muted-foreground sm:grid-cols-2">
-                    {(v.checks ?? []).map((c, i) => (
+                    {asArray(v.checks).map((c, i) => (
                       <div key={i} className="flex items-center gap-1">
                         {c.pass ? <CheckCircle2 className="h-3 w-3 text-success" /> : <XCircle className="h-3 w-3 text-danger" />}
                         <span>{c.name}: {String(c.actual ?? "—")}</span>

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { BookOpen, Lightbulb, TrendingUp, Users, FileText, CheckCircle2, XCircle } from "lucide-react";
 import { fmtDate, timeAgo, classNames, inr } from "@/lib/format";
+import { asArray } from "@/lib/verification";
 import { computeTrend } from "@/lib/engine";
 import type { CaseRow, KnowledgeCandidate, Customer, Incident } from "@/lib/types";
 
@@ -146,11 +147,15 @@ export function TrendsPanel({
   const older = caseList.filter((c) => now - new Date(c.created_at).getTime() >= 7 * 86400000);
 
   const rows = fps.map((fp) => {
-    const matcher = (c: CaseRow) =>
-      (c.root_cause ?? "").toLowerCase().includes(fp.name.split(" ")[0].toLowerCase()) ||
-      (c.evidence ?? []).some((e) => String(e.label).toLowerCase().includes(fp.name.split(" ")[0].toLowerCase())) ||
-      (c.evidence ?? []).some((e) => e.type.includes(fp.affected_system)) ||
-      (c.intent === "billing" && fp.fingerprint_id === "FP-01");
+    const matcher = (c: CaseRow) => {
+      const ev = asArray<unknown>(c.evidence);
+      return (
+        (c.root_cause ?? "").toLowerCase().includes(fp.name.split(" ")[0].toLowerCase()) ||
+        ev.some((e) => String((e as { label?: string }).label ?? "").toLowerCase().includes(fp.name.split(" ")[0].toLowerCase())) ||
+        ev.some((e) => String((e as { type?: string }).type ?? "").includes(fp.affected_system)) ||
+        (c.intent === "billing" && fp.fingerprint_id === "FP-01")
+      );
+    };
     const cur = recent.filter(matcher);
     const base = older.filter(matcher);
     const customers = new Set<string>();

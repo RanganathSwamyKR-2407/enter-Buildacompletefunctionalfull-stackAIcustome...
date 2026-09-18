@@ -43,7 +43,7 @@ export function ChatWindow({
   const submit = (e: FormEvent) => {
     e.preventDefault();
     const t = text.trim();
-    if (!t || sending) return;
+    if (!t || sending || disabled) return;
     setText("");
     onSend(t);
   };
@@ -64,8 +64,9 @@ export function ChatWindow({
                 {suggested.map((s) => (
                   <button
                     key={s}
-                    onClick={() => onSend(s)}
-                    className="rounded-full border bg-card px-3 py-1.5 text-xs text-muted-foreground hover:border-brand hover:text-brand"
+                    onClick={() => { if (!disabled && !sending) onSend(s); }}
+                    disabled={disabled || sending}
+                    className="rounded-full border bg-card px-3 py-1.5 text-xs text-muted-foreground hover:border-brand hover:text-brand disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {s}
                   </button>

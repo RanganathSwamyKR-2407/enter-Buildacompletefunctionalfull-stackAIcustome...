@@ -43,7 +43,7 @@ import { RAGQuality, KnowledgeCandidates } from "@/components/knowledge-panels";
 import { InvestigationReplay } from "@/components/replay";
 import { computeCustomerEffort } from "@/lib/engine";
 import { humanValue } from "@/lib/format";
-import { normalizeVerification } from "@/lib/verification";
+import { asArray, normalizeVerification } from "@/lib/verification";
 
 export default function Investigation() {
   const { caseId } = useParams<{ caseId: string }>();
@@ -117,7 +117,7 @@ export default function Investigation() {
 
   const sla = slaRemaining(cs.sla_deadline);
   const investigating = cs.status === "investigating" || cs.status === "verifying" || cs.status === "action_required";
-  const ragSources = ((cs.evidence ?? []).filter((e) => e.source === "knowledge")).map((e) => ({
+  const ragSources = (asArray(cs.evidence).filter((e) => e.source === "knowledge")).map((e) => ({
     doc_id: String((e.value as { doc_id?: string })?.doc_id ?? ""),
     title: e.label.split(" — ")[0],
     score: Number((e.value as { score?: number })?.score ?? 0),
@@ -186,7 +186,7 @@ export default function Investigation() {
             <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-danger" />
             <div className="text-[13px]">
               <div className="font-semibold text-danger">CONTRADICTION DETECTED</div>
-              {(cs.contradictions ?? []).map((c, i) => (
+              {asArray(cs.contradictions).map((c, i) => (
                 <div key={i} className="mt-1">
                   <div className="font-medium">{c.label}</div>
                   <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
@@ -219,7 +219,7 @@ export default function Investigation() {
             </CardHeader>
             <CardContent className="grid grid-cols-2 gap-2 p-4 text-[13px]">
               <KV k="Intent" v={cs.intent ?? "—"} />
-              <KV k="Sub-intents" v={(cs.sub_intents ?? []).join(", ") || "—"} />
+              <KV k="Sub-intents" v={asArray(cs.sub_intents).join(", ") || "—"} />
               <KV k="Urgency" v={cs.urgency ?? "—"} />
               <KV k="Sentiment" v={cs.sentiment ?? "—"} />
               <KV k="Priority" v={cs.priority ?? "—"} />
@@ -257,8 +257,8 @@ export default function Investigation() {
 
         {/* Right: evidence + gates + action */}
         <div className="space-y-4 xl:col-span-2">
-          <EvidencePanel evidence={(cs.evidence ?? []) as CaseRow["evidence"]} />
-          <ContradictionMatrix contradictions={(cs.contradictions ?? []) as CaseRow["contradictions"]} />
+          <EvidencePanel evidence={asArray(cs.evidence) as CaseRow["evidence"]} />
+          <ContradictionMatrix contradictions={asArray(cs.contradictions) as CaseRow["contradictions"]} />
           <div className="grid gap-4 lg:grid-cols-2">
             <HypothesisPanel caseRow={cs} />
             <GateStatus gates={(cs.gates ?? {}) as Record<string, never>} />
@@ -276,7 +276,7 @@ export default function Investigation() {
           {staffRole && (
             <>
               <ApprovalPanel caseRow={cs} customerTier={customer?.tier ?? "standard"} />
-              <SimulationPanel customerTier={customer?.tier ?? "standard"} evidenceSources={[...new Set((cs.evidence ?? []).map((e) => e.source))]} />
+              <SimulationPanel customerTier={customer?.tier ?? "standard"} evidenceSources={[...new Set(asArray(cs.evidence).map((e) => e.source))]} />
             </>
           )}
 
@@ -300,7 +300,7 @@ export default function Investigation() {
                   Staff-initiated actions pass through the four-gate controller before execution.
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <Button size="sm" variant="outline" disabled={acting !== null || cs.status === "resolved"} onClick={() => void runAction("issue_refund", { payment_txn: (cs.transaction_ids ?? [])[0] })}>
+                  <Button size="sm" variant="outline" disabled={acting !== null || cs.status === "resolved"} onClick={() => void runAction("issue_refund", { payment_txn: asArray(cs.transaction_ids)[0] })}>
                     <ArrowUpRight className="mr-1 h-3.5 w-3.5" /> Refund
                   </Button>
                   <Button size="sm" variant="outline" disabled={acting !== null} onClick={() => void runAction("update_ticket", { note: "Specialist review in progress" })}>
@@ -350,7 +350,7 @@ function KV({ k, v }: { k: string; v: React.ReactNode }) {
 
 function CaseEffortCard({ caseRow, escalated }: { caseRow: CaseRow; escalated: boolean }) {
   const repeatContacts = Number((caseRow.customer_history as Record<string, unknown>)?.repeat_contacts ?? 0);
-  const failedActions = (caseRow.action_history ?? []).filter((a) => a.status === "failed").length;
+  const failedActions = asArray(caseRow.action_history).filter((a) => a.status === "failed").length;
   const resolved = caseRow.status === "resolved";
   const resolutionHours = resolved && caseRow.updated_at
     ? Math.max(1, (new Date(caseRow.updated_at).getTime() - new Date(caseRow.created_at).getTime()) / 3600000)

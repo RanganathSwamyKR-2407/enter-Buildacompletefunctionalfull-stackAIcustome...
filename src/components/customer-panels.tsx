@@ -4,6 +4,7 @@ import { SectionCard } from "@/components/panels";
 import { Badge } from "@/components/ui/badge";
 import { classNames, fmtDate, inr } from "@/lib/format";
 import { computeCustomerEffort, type EffortResult } from "@/lib/engine";
+import { asArray } from "@/lib/verification";
 
 // ---------------------------------------------------------------------
 // 5. Customer Effort Score — computed from actual records
@@ -23,7 +24,7 @@ export function EffortScore({ tickets, cases, escalations, refunds }: {
     ? resolved.reduce((n, c) => n + (c.closed_at ? (new Date(c.closed_at).getTime() - new Date(c.created_at).getTime()) / 3600000 : 0), 0) / resolved.length
     : 0;
   const infoRequests = caseList.filter((c) => /status|update|when|how long|still|pending/i.test(c.message_text ?? "")).length;
-  const failedActions = caseList.reduce((n, c) => n + (c.action_history ?? []).filter((a) => a.status === "failed").length, 0);
+  const failedActions = caseList.reduce((n, c) => n + asArray(c.action_history).filter((a) => a.status === "failed").length, 0);
   const result: EffortResult = computeCustomerEffort({
     contacts: ticketList.length + caseList.length,
     transfers: escList.length,

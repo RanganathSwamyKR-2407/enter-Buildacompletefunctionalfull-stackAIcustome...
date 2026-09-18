@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { classNames, confidenceLabel, fmtDate, inr, humanLabel, humanValue } from "@/lib/format";
 import { assessUncertainty, computeCustomerEffort } from "@/lib/engine";
 import type { UncertaintyResult } from "@/lib/engine";
+import { asArray } from "@/lib/verification";
 
 const TAG = {
   FACT: "bg-success-soft text-success",
@@ -25,7 +26,7 @@ function Tag({ kind }: { kind: keyof typeof TAG }) {
 // 1. AI Decision Trace — concise, auditable decision factors, no CoT.
 // ---------------------------------------------------------------------
 export function DecisionTrace({ caseRow }: { caseRow: CaseRow }) {
-  const knowledge = (caseRow.evidence ?? []).filter((e) => e.source === "knowledge");
+  const knowledge = asArray(caseRow.evidence).filter((e) => e.source === "knowledge");
   const gates = (caseRow.gates ?? {}) as Record<string, GateResult>;
   const authority = caseRow.authority_result ?? gates.authority;
   const risk = caseRow.risk_result ?? gates.risk;
@@ -42,13 +43,13 @@ export function DecisionTrace({ caseRow }: { caseRow: CaseRow }) {
     <SectionCard title="AI Decision Trace" icon={<Brain className="h-4 w-4 text-brand" />}>
       <div className="space-y-1.5 text-[13px]">
         <TraceRow tag="FACT" label="Customer intent" value={caseRow.intent ?? "—"} />
-        <TraceRow tag="FACT" label="Relevant context" value={`${(caseRow.order_ids ?? []).length} order(s) · ${(caseRow.transaction_ids ?? []).length} txn(s) · ${(caseRow.ticket_ids ?? []).length} prior ticket(s)`} />
-        <TraceRow tag="FACT" label="Evidence used" value={`${caseRow.evidence_count ?? 0} items from ${new Set((caseRow.evidence ?? []).map((e) => e.source)).size} source(s)`} />
-        <TraceRow tag="FACT" label="Evidence sources" value={[...new Set((caseRow.evidence ?? []).map((e) => e.source))].join(", ") || "—"} />
+        <TraceRow tag="FACT" label="Relevant context" value={`${asArray(caseRow.order_ids).length} order(s) · ${asArray(caseRow.transaction_ids).length} txn(s) · ${asArray(caseRow.ticket_ids).length} prior ticket(s)`} />
+        <TraceRow tag="FACT" label="Evidence used" value={`${caseRow.evidence_count ?? 0} items from ${new Set(asArray(caseRow.evidence).map((e) => e.source)).size} source(s)`} />
+        <TraceRow tag="FACT" label="Evidence sources" value={[...new Set(asArray(caseRow.evidence).map((e) => e.source))].join(", ") || "—"} />
         <TraceRow tag="FACT" label="Retrieved knowledge" value={knowledge.length ? `${knowledge.length} document chunk(s)` : "None matched"} />
         <TraceRow tag="FACT" label="Relevant policy" value={`${(caseRow.policy_result as Record<string, unknown>)?.policy_id ?? "—"} · ${(caseRow.policy_result as Record<string, unknown>)?.reason ?? ""}`} />
         <TraceRow tag="HYPOTHESIS" label="Root-cause hypothesis" value={`${caseRow.root_cause ?? "—"} (${confidenceLabel(caseRow.root_cause_confidence)})`} />
-        <TraceRow tag="HYPOTHESIS" label="Alternative hypotheses" value={(caseRow.hypotheses ?? []).slice(1).map((h) => h.title).join("; ") || "None"} />
+        <TraceRow tag="HYPOTHESIS" label="Alternative hypotheses" value={asArray(caseRow.hypotheses).slice(1).map((h) => h.title).join("; ") || "None"} />
         <TraceRow tag="DECISION" label="Confidence" value={confidenceLabel(caseRow.root_cause_confidence ?? caseRow.routing_confidence)} />
         <TraceRow tag="FACT" label="Authority result" value={String((authority as GateResult)?.status ?? "—")} />
         <TraceRow tag="FACT" label="Risk result" value={String((risk as GateResult)?.status ?? "—")} />
@@ -75,8 +76,8 @@ function TraceRow({ tag, label, value }: { tag: keyof typeof TAG; label: string;
 // 6. Uncertainty / low-confidence indicator
 // ---------------------------------------------------------------------
 export function UncertaintyPanel({ caseRow }: { caseRow: CaseRow }) {
-  const evidenceCount = (caseRow.evidence ?? []).length;
-  const contradictions = (caseRow.contradictions ?? []).length;
+  const evidenceCount = asArray(caseRow.evidence).length;
+  const contradictions = asArray(caseRow.contradictions).length;
   const u: UncertaintyResult = assessUncertainty({
     aiConfidence: caseRow.root_cause_confidence ?? caseRow.routing_confidence,
     evidenceCount,
@@ -204,12 +205,12 @@ export function SLAIntelligence({ caseRow }: { caseRow: CaseRow }) {
 // 15. Human Handoff Summary
 // ---------------------------------------------------------------------
 export function HandoffSummary({ caseRow, events }: { caseRow: CaseRow; events?: CaseEvent[] }) {
-  const known = (caseRow.evidence ?? []).filter((e) => e.known).map((e) => e.label);
-  const unknown = (caseRow.evidence ?? []).filter((e) => !e.known).map((e) => e.label);
-  const attempted = (caseRow.action_history ?? []).map((a) => `attempt ${a.attempt ?? "?"}: ${a.status ?? a.detail}`).join("; ") || "None";
+  const known = asArray(caseRow.evidence).filter((e) => e.known).map((e) => e.label);
+  const unknown = asArray(caseRow.evidence).filter((e) => !e.known).map((e) => e.label);
+  const attempted = asArray(caseRow.action_history).map((a) => `attempt ${a.attempt ?? "?"}: ${a.status ?? a.detail}`).join("; ") || "None";
   const automationStopped =
     caseRow.status === "escalated"
-      ? (caseRow.contradictions ?? []).length > 0
+      ? asArray(caseRow.contradictions).length > 0
         ? "Contradictory evidence blocked autonomous resolution."
         : (caseRow.circuit_breaker?.tripped
           ? `Circuit breaker tripped after ${caseRow.circuit_breaker.attempts} failed attempts.`
@@ -270,7 +271,7 @@ export function ActionPreview({ caseRow }: { caseRow: CaseRow }) {
   const gates = (caseRow.gates ?? {}) as Record<string, GateResult>;
   const riskStatus = String((caseRow.risk_result as GateResult)?.status ?? "—");
   const confidence = confidenceLabel(caseRow.root_cause_confidence ?? caseRow.routing_confidence);
-  const evidenceIds = (caseRow.evidence ?? []).slice(0, 4).map((e) => e.label);
+  const evidenceIds = asArray(caseRow.evidence).slice(0, 4).map((e) => e.label);
   const expected =
     action === "issue_refund"
       ? `Refund ${inr(Number(rec.amount ?? 0))} issued and independently verified (payment marked refunded).`

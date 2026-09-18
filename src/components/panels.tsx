@@ -99,7 +99,7 @@ export function EvidencePanel({ evidence }: { evidence: EvidenceItem[] }) {
 }
 
 export function HypothesisPanel({ caseRow }: { caseRow: CaseRow }) {
-  const hyps: Hypothesis[] = caseRow.hypotheses ?? [];
+  const hyps: Hypothesis[] = asArray<Hypothesis>(caseRow.hypotheses);
   return (
     <SectionCard title="Root Cause & Hypotheses" icon={<Lightbulb className="h-4 w-4 text-warning" />}>
       <div className="mb-3 flex items-center gap-2">

@@ -3,6 +3,7 @@ import type { Escalation, CaseRow } from "@/lib/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EscalationBadge, PriorityBadge } from "@/components/badges";
 import { fmtDate, timeAgo, humanLabel, humanValue } from "@/lib/format";
+import { asArray } from "@/lib/verification";
 
 export function EscalationPanel({ escalation, caseRow }: { escalation: Escalation; caseRow?: CaseRow | null }) {
   return (
@@ -16,7 +17,7 @@ export function EscalationPanel({ escalation, caseRow }: { escalation: Escalatio
       </CardHeader>
       <CardContent className="space-y-2 p-4">
         <div className="flex flex-wrap gap-2">
-          {(escalation.reasons ?? []).map((r, i) => (
+          {asArray(escalation.reasons).map((r, i) => (
             <span key={i} className="rounded bg-card px-2 py-1 text-xs text-muted-foreground">
               {r}
             </span>
