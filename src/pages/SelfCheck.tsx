@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, FlaskConical, CheckCircle2, XCircle } from "lucide-react";
+import { humanValue } from "@/lib/format";
 import { SystemHealth, DemoMode } from "@/components/health-demo";
 
 export default function SelfCheck() {
@@ -81,7 +82,7 @@ export default function SelfCheck() {
                 Case <span className="font-medium text-foreground">{String(r.case_id)}</span> ·{" "}
                 {Object.entries(r)
                   .filter(([k]) => !["scenario", "case_id", "pass"].includes(k))
-                  .map(([k, v]) => `${k}=${v === true ? "yes" : v === false ? "no" : JSON.stringify(v)}`)
+                  .map(([k, v]) => `${k}=${humanValue(v)}`)
                   .join(" · ")}
               </div>
             </CardContent>

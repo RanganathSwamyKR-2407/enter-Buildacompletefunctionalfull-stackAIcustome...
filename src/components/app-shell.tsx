@@ -65,7 +65,7 @@ const ROLE_LABEL: Record<string, string> = {
 };
 
 export function AppShell() {
-  const { staffRole, customerId, displayName } = useAuth();
+  const { staffRole, customerId, displayName, avatarUrl } = useAuth();
   const roleKey = staffRole ?? (customerId ? "customer" : null);
   const isCustomer = Boolean(customerId) && !staffRole;
 
@@ -115,10 +115,14 @@ export function AppShell() {
           ))}
         </nav>
         <div className="border-t border-sidebar-border p-3">
-          <div className="flex items-center gap-2 rounded-md bg-sidebar-accent/60 p-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-brand text-[11px] font-bold text-brand-foreground">
-              {(displayName ?? "?").slice(0, 1).toUpperCase()}
-            </div>
+          <Link to="/profile" className="flex items-center gap-2 rounded-md bg-sidebar-accent/60 p-2 transition-colors hover:bg-sidebar-accent">
+            {avatarUrl ? (
+              <img src={avatarUrl} alt="" className="h-7 w-7 rounded-full object-cover" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+            ) : (
+              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-brand text-[11px] font-bold text-brand-foreground">
+                {(displayName ?? "?").slice(0, 1).toUpperCase()}
+              </div>
+            )}
             <div className="min-w-0 flex-1">
               <div className="truncate text-xs font-semibold">{displayName ?? "Guest"}</div>
               <div className="text-[11px] text-sidebar-foreground/60">
@@ -126,13 +130,16 @@ export function AppShell() {
               </div>
             </div>
             <button
-              onClick={() => void signOut()}
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); void signOut(); }}
               className="rounded p-1 text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground"
               title="Sign out"
             >
               <LogOut className="h-4 w-4" />
             </button>
-          </div>
+          </Link>
+          <Link to="/profile" className="mt-1 block rounded-md px-2 py-1 text-center text-[11px] font-medium text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground">
+            My Profile
+          </Link>
         </div>
       </aside>
 

@@ -3,7 +3,7 @@ import { Play, RotateCcw, StepForward } from "lucide-react";
 import type { CaseEvent } from "@/lib/types";
 import { SectionCard } from "@/components/panels";
 import { Button } from "@/components/ui/button";
-import { classNames, fmtDate } from "@/lib/format";
+import { classNames, fmtDate, readableRows } from "@/lib/format";
 
 const STAGE_SEQ = [
   "evidence_ingest",
@@ -115,9 +115,9 @@ export function InvestigationReplay({ events }: { events?: CaseEvent[] }) {
                   <span className="font-medium">{STAGE_LABEL[stage] ?? stage}</span>
                   {reached && <span className="text-[11px] text-muted-foreground">{fmtDate(ev.created_at)}</span>}
                 </div>
-                {reached && ev.result && Object.keys(ev.result).length > 0 && (
-                  <div className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground" title={JSON.stringify(ev.result)}>
-                    {JSON.stringify(ev.result).slice(0, 140)}
+                {reached && ev.result && readableRows(ev.result as Record<string, unknown>, 2).length > 0 && (
+                  <div className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                    {readableRows(ev.result as Record<string, unknown>, 2).map((r) => `${r.label}: ${r.value}`).join(" · ")}
                   </div>
                 )}
               </div>

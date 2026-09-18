@@ -1,6 +1,6 @@
 import { CheckCircle2, XCircle, AlertTriangle, Loader2, Circle } from "lucide-react";
 import type { CaseEvent } from "@/lib/types";
-import { classNames, fmtDate } from "@/lib/format";
+import { classNames, fmtDate, readableRows } from "@/lib/format";
 
 const STAGE_ORDER = [
   "evidence_ingest",
@@ -80,9 +80,13 @@ export function InvestigationTimeline({
                   {ev && <span>{fmtDate(ev.created_at)}</span>}
                 </div>
               </div>
-              {ev?.result && Object.keys(ev.result).length > 0 && (
-                <div className="mt-1 font-mono text-[11px] leading-relaxed text-muted-foreground">
-                  {JSON.stringify(ev.result, null, 0).slice(0, 320)}
+              {ev?.result && readableRows(ev.result as Record<string, unknown>, 5).length > 0 && (
+                <div className="mt-1 grid gap-x-4 gap-y-0.5 text-[11px] text-muted-foreground sm:grid-cols-2">
+                  {readableRows(ev.result as Record<string, unknown>, 5).map((r) => (
+                    <div key={r.label} className="truncate">
+                      <span className="font-medium text-foreground/70">{r.label}:</span> {r.value}
+                    </div>
+                  ))}
                 </div>
               )}
               {ev?.error && (

@@ -6,13 +6,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ShieldCheck, Scale, Bot, Lightbulb, CheckCircle2, XCircle } from "lucide-react";
-import { inr, timeAgo } from "@/lib/format";
+import { inr, timeAgo, humanLabel } from "@/lib/format";
 import type { Policy, KnowledgeCandidate } from "@/lib/types";
 
 export default function Policies() {
   const { data: policies, isLoading } = usePolicies();
   const { data: agents } = useAgents();
   const qc = useQueryClient();
+  const [showTech, setShowTech] = useState(false);
 
   const { data: candidates } = useQuery({
     queryKey: ["knowledge-candidates"],
@@ -66,7 +67,7 @@ export default function Policies() {
                   <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Allowed actions</div>
                   <div className="flex flex-wrap gap-1.5">
                     {policy.allowed_actions.map((a) => (
-                      <span key={a} className="rounded bg-brand-soft px-1.5 py-0.5 text-xs font-medium text-brand">{a}</span>
+                      <span key={a} className="rounded bg-brand-soft px-1.5 py-0.5 text-xs font-medium text-brand">{humanLabel(a)}</span>
                     ))}
                   </div>
                 </div>
@@ -84,10 +85,42 @@ export default function Policies() {
                 )}
                 <div>
                   <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Conditions</div>
-                  <pre className="whitespace-pre-wrap rounded bg-muted/40 px-2 py-1.5 font-mono text-[11px]">
-                    {JSON.stringify(policy.conditions, null, 1)}
-                  </pre>
+                  <ul className="mt-1 space-y-1">
+                    {Object.entries(policy.conditions).map(([k, v]) => (
+                      <li key={k} className="flex items-center gap-1.5 text-[13px]">
+                        <span className={v === true ? "text-success" : v === false ? "text-danger" : "text-muted-foreground"}>
+                          {v === true ? "✓" : v === false ? "✕" : "•"}
+                        </span>
+                        {humanLabel(k)}
+                        {typeof v === "number" && <span className="text-muted-foreground">(threshold: {v})</span>}
+                      </li>
+                    ))}
+                    {Object.keys(policy.conditions).length === 0 && <li className="text-xs text-muted-foreground">No conditions defined</li>}
+                  </ul>
                 </div>
+                <div>
+                  <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Restrictions</div>
+                  {policy.restrictions.length > 0 ? (
+                    <ul className="mt-1 space-y-1">
+                      {policy.restrictions.map((r) => (
+                        <li key={r} className="text-[13px]">• {humanLabel(r)}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <div className="text-xs text-muted-foreground">No restrictions defined</div>
+                  )}
+                </div>
+                <button
+                  onClick={() => setShowTech(!showTech)}
+                  className="text-[11px] font-medium text-muted-foreground underline-offset-2 hover:underline"
+                >
+                  {showTech ? "Hide Technical Details" : "View Technical Details"}
+                </button>
+                {showTech && (
+                  <pre className="whitespace-pre-wrap rounded bg-muted/40 px-2 py-1.5 font-mono text-[11px]">
+                    {JSON.stringify(policy, null, 1)}
+                  </pre>
+                )}
               </CardContent>
             </Card>
           );

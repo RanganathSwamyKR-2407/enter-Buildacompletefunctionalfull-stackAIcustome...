@@ -119,6 +119,7 @@ export default function Chat() {
           status: `${res.status} · ${res.resolution_status ?? ""}`,
           caseId: res.case_id,
           caseUuid: res.case_uuid,
+          investigationLink: res.case_uuid ? `/investigations/${res.case_uuid}` : undefined,
         },
       ]);
     } catch (e) {

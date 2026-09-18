@@ -793,6 +793,147 @@ async function callerEmail(token: string | null): Promise<string> {
   return j.email ?? "";
 }
 
+
+// ---------------------------------------------------------------------
+// Profile customization. Identity comes from the verified JWT; a user can
+// edit ONLY their own profile fields (or, for Manager/Admin, the
+// non-role profile fields of staff they manage). Role/tier/permissions
+// can never be changed here — the server never accepts a role from input.
+// ---------------------------------------------------------------------
+function validDisplayName(v: string): boolean { return v.length > 0 && v.length <= 80; }
+function validAvatar(v: string): boolean { return v === "" || /^https?:\/\//.test(v); }
+function validPhone(v: string): boolean { return v === "" || /^[+0-9 ()-]{6,20}$/.test(v); }
+
+async function handleProfile(token: string | null, body: Record<string, unknown>): Promise<Response> {
+  const caller = await resolveCaller(token);
+  if (!caller.userId) return jsonResponse({ error: "unauthenticated" }, 401);
+
+  const op = String(body.op ?? "get");
+
+  if (op === "get") {
+    const { data: staff } = await db.from("resolveai_staff").select("*").eq("user_id", caller.userId).maybeSingle();
+    if (staff) {
+      const r = staff as Record<string, unknown>;
+      return jsonResponse({
+        ok: true,
+        profile: {
+          user_id: caller.userId,
+          email: r.email ?? null,
+          role: r.role,
+          name: r.name,
+          display_name: r.display_name ?? r.name,
+          avatar_url: r.avatar_url ?? "",
+          phone: r.phone ?? "",
+          department: r.department ?? "",
+          job_title: r.job_title ?? "",
+          bio: r.bio ?? "",
+          is_staff: true,
+        },
+      });
+    }
+    const { data: customer } = await db.from("resolveai_customers").select("*").eq("user_id", caller.userId).maybeSingle();
+    if (customer) {
+      const c = customer as Record<string, unknown>;
+      return jsonResponse({
+        ok: true,
+        profile: {
+          user_id: caller.userId,
+          email: c.email,
+          role: "customer",
+          name: c.name,
+          display_name: c.display_name ?? c.name,
+          avatar_url: c.avatar_url ?? "",
+          phone: c.phone ?? "",
+          tier: c.tier,
+          customer_code: c.customer_code,
+          is_staff: false,
+        },
+      });
+    }
+    return jsonResponse({ ok: false, detail: "No profile found for this account." }, 404);
+  }
+
+  if (op === "update") {
+    const targetUserId = body.target_user_id ? String(body.target_user_id) : caller.userId;
+    if (targetUserId !== caller.userId) {
+      const mgr = ["manager", "admin"].includes(caller.staffRole ?? "");
+      if (!mgr) return jsonResponse({ error: "forbidden", detail: "You may only edit your own profile." }, 403);
+      const { data: targetStaff } = await db.from("resolveai_staff").select("user_id").eq("user_id", targetUserId).maybeSingle();
+      if (!targetStaff) return jsonResponse({ error: "not_found", detail: "Target staff profile not found." }, 404);
+    }
+
+    const displayName = body.display_name != null ? String(body.display_name).trim() : undefined;
+    const avatarUrl = body.avatar_url != null ? String(body.avatar_url).trim() : undefined;
+    const phone = body.phone != null ? String(body.phone).trim() : undefined;
+    const department = body.department != null ? String(body.department).slice(0, 60) : undefined;
+    const jobTitle = body.job_title != null ? String(body.job_title).slice(0, 60) : undefined;
+    const bio = body.bio != null ? String(body.bio).slice(0, 240) : undefined;
+
+    if (displayName != null && !validDisplayName(displayName)) return jsonResponse({ error: "invalid_display_name" }, 400);
+    if (avatarUrl != null && !validAvatar(avatarUrl)) return jsonResponse({ error: "invalid_avatar_url" }, 400);
+    if (phone != null && !validPhone(phone)) return jsonResponse({ error: "invalid_phone" }, 400);
+
+    const { data: staffRow } = await db
+      .from("resolveai_staff")
+      .select("name, role, display_name, avatar_url, phone, department, job_title, bio")
+      .eq("user_id", targetUserId)
+      .maybeSingle();
+    const { data: customerRow } = await db
+      .from("resolveai_customers")
+      .select("name, display_name, avatar_url, phone")
+      .eq("user_id", targetUserId)
+      .maybeSingle();
+
+    const changes: Record<string, { from: string; to: string }> = {};
+    if (staffRow) {
+      const cur = staffRow as Record<string, unknown>;
+      const patch: Record<string, unknown> = {};
+      if (displayName != null && displayName !== (cur.display_name ?? cur.name)) { patch.display_name = displayName; changes.display_name = { from: String(cur.display_name ?? cur.name), to: displayName }; }
+      if (avatarUrl != null && avatarUrl !== (cur.avatar_url ?? "")) { patch.avatar_url = avatarUrl || null; changes.avatar_url = { from: String(cur.avatar_url ?? ""), to: avatarUrl }; }
+      if (phone != null && phone !== (cur.phone ?? "")) { patch.phone = phone || null; changes.phone = { from: String(cur.phone ?? ""), to: phone }; }
+      if (department != null && department !== (cur.department ?? "")) { patch.department = department || null; changes.department = { from: String(cur.department ?? ""), to: department }; }
+      if (jobTitle != null && jobTitle !== (cur.job_title ?? "")) { patch.job_title = jobTitle || null; changes.job_title = { from: String(cur.job_title ?? ""), to: jobTitle }; }
+      if (bio != null && bio !== (cur.bio ?? "")) { patch.bio = bio || null; changes.bio = { from: String(cur.bio ?? ""), to: bio }; }
+      if (Object.keys(patch).length > 0) {
+        const { error } = await db.from("resolveai_staff").update(patch).eq("user_id", targetUserId);
+        if (error) throw error;
+      }
+    } else if (customerRow) {
+      const cur = customerRow as Record<string, unknown>;
+      const patch: Record<string, unknown> = {};
+      if (displayName != null && displayName !== (cur.display_name ?? cur.name)) { patch.display_name = displayName; changes.display_name = { from: String(cur.display_name ?? cur.name), to: displayName }; }
+      if (avatarUrl != null && avatarUrl !== (cur.avatar_url ?? "")) { patch.avatar_url = avatarUrl || null; changes.avatar_url = { from: String(cur.avatar_url ?? ""), to: avatarUrl }; }
+      if (phone != null && phone !== (cur.phone ?? "")) { patch.phone = phone || null; changes.phone = { from: String(cur.phone ?? ""), to: phone }; }
+      if (Object.keys(patch).length > 0) {
+        const { error } = await db.from("resolveai_customers").update(patch).eq("user_id", targetUserId);
+        if (error) throw error;
+      }
+    } else {
+      return jsonResponse({ ok: false, detail: "No editable profile found." }, 404);
+    }
+
+    if (Object.keys(changes).length > 0) {
+      await emitAudit(db, null, caller.actor, "profile", "profile_updated", {
+        input: { target_user_id: targetUserId },
+        decision: { changes },
+      });
+    }
+    return jsonResponse({ ok: true, changes });
+  }
+
+  return jsonResponse({ error: "unknown_op" }, 400);
+}
+
+async function handleTeam(token: string | null): Promise<Response> {
+  const caller = await resolveCaller(token);
+  if (!["manager", "admin"].includes(caller.staffRole ?? "")) {
+    return jsonResponse({ error: "forbidden", detail: "Manager or Admin required" }, 403);
+  }
+  const { data } = await db.from("resolveai_staff").select("user_id, name, display_name, role, department, job_title, avatar_url, phone").order("name", { ascending: true });
+  return jsonResponse({ ok: true, team: data ?? [] });
+}
+
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
@@ -822,6 +963,10 @@ Deno.serve(async (req) => {
         return await handleHealth();
       case "link_account":
         return await handleLinkAccount(token);
+      case "profile":
+        return await handleProfile(token, body);
+      case "team":
+        return await handleTeam(token);
       default:
         return jsonResponse({ error: "unknown_route" }, 404);
     }

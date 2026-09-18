@@ -2,7 +2,7 @@ import { LifeBuoy, FileText, ScrollText } from "lucide-react";
 import type { Escalation, CaseRow } from "@/lib/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EscalationBadge, PriorityBadge } from "@/components/badges";
-import { fmtDate, timeAgo } from "@/lib/format";
+import { fmtDate, timeAgo, humanLabel, humanValue } from "@/lib/format";
 
 export function EscalationPanel({ escalation, caseRow }: { escalation: Escalation; caseRow?: CaseRow | null }) {
   return (
@@ -116,9 +116,16 @@ export function ResolutionPassport({ passport }: { passport: Record<string, unkn
               : "None"}
         </PassportRow>
         <PassportRow label="Recommended next action">
-          <pre className="whitespace-pre-wrap font-sans text-[13px]">
-            {JSON.stringify(p.recommended_next_action ?? {}, null, 2)}
-          </pre>
+          <div className="space-y-0.5">
+            {Object.entries((p.recommended_next_action ?? {}) as Record<string, unknown>).map(([k, v]) => (
+              <div key={k} className="text-[13px]">
+                <span className="text-muted-foreground">{humanLabel(k)}:</span> {humanValue(v)}
+              </div>
+            ))}
+            {Object.keys((p.recommended_next_action ?? {}) as Record<string, unknown>).length === 0 && (
+              <span className="text-[13px] text-muted-foreground">Not available</span>
+            )}
+          </div>
         </PassportRow>
         <PassportRow label="Escalation reason">
           {(p.escalation_reason as string[])?.join("; ") ?? "—"}

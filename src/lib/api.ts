@@ -92,7 +92,50 @@ export const api = {
   /** Associate a verified OAuth identity with an existing profile by email. */
   linkAccount: () =>
     invoke<{ ok: boolean; linked?: boolean; customer_id?: string; detail?: string }>({ route: "link_account" }),
+
+  /** Read the authenticated user's own profile. */
+  profile: () =>
+    invoke<{ ok: boolean; profile: ProfileShape; detail?: string }>({ route: "profile", op: "get" }),
+
+  /** Update own (or, for Manager/Admin, managed staff) profile fields. Role is never editable. */
+  updateProfile: (payload: Record<string, unknown>) =>
+    invoke<{ ok: boolean; changes: Record<string, { from: string; to: string }>; detail?: string }>({
+      route: "profile",
+      op: "update",
+      ...payload,
+    }),
+
+  /** Manager/Admin: list staff team for profile management. */
+  team: () =>
+    invoke<{ ok: boolean; team: TeamMember[] }>({ route: "team" }),
 };
+
+export interface ProfileShape {
+  user_id: string;
+  email?: string | null;
+  role: string;
+  name: string;
+  display_name?: string;
+  avatar_url?: string;
+  phone?: string;
+  department?: string;
+  job_title?: string;
+  bio?: string;
+  tier?: string;
+  customer_code?: string;
+  is_staff: boolean;
+}
+
+export interface TeamMember {
+  user_id: string;
+  name: string;
+  display_name: string | null;
+  role: string;
+  department: string | null;
+  job_title: string | null;
+  avatar_url: string | null;
+  phone: string | null;
+}
 
 /** Direct DB reads (RLS-scoped). */
 export const db = {

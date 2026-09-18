@@ -15,6 +15,7 @@ import Analytics from "@/pages/Analytics";
 import Escalations from "@/pages/Escalations";
 import Audit from "@/pages/Audit";
 import SelfCheck from "@/pages/SelfCheck";
+import Profile from "@/pages/Profile";
 import NotFound from "@/pages/NotFound";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -69,6 +70,7 @@ export const routers = [
       { path: "escalations", element: <Escalations /> },
       { path: "audit", element: <Audit /> },
       { path: "selfcheck", element: <SelfCheck /> },
+      { path: "profile", element: <Profile /> },
     ],
   },
   {

@@ -3801,10 +3801,12 @@ export type Database = {
       }
       resolveai_customers: {
         Row: {
+          avatar_url: string | null
           churn_risk: number
           city: string | null
           created_at: string
           customer_code: string
+          display_name: string | null
           email: string
           id: string
           lifetime_value: number
@@ -3817,10 +3819,12 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          avatar_url?: string | null
           churn_risk?: number
           city?: string | null
           created_at?: string
           customer_code: string
+          display_name?: string | null
           email: string
           id?: string
           lifetime_value?: number
@@ -3833,10 +3837,12 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          avatar_url?: string | null
           churn_risk?: number
           city?: string | null
           created_at?: string
           customer_code?: string
+          display_name?: string | null
           email?: string
           id?: string
           lifetime_value?: number
@@ -4414,23 +4420,41 @@ export type Database = {
       }
       resolveai_staff: {
         Row: {
+          avatar_url: string | null
+          bio: string | null
           created_at: string
+          department: string | null
+          display_name: string | null
           id: string
+          job_title: string | null
           name: string
+          phone: string | null
           role: string
           user_id: string | null
         }
         Insert: {
+          avatar_url?: string | null
+          bio?: string | null
           created_at?: string
+          department?: string | null
+          display_name?: string | null
           id?: string
+          job_title?: string | null
           name: string
+          phone?: string | null
           role: string
           user_id?: string | null
         }
         Update: {
+          avatar_url?: string | null
+          bio?: string | null
           created_at?: string
+          department?: string | null
+          display_name?: string | null
           id?: string
+          job_title?: string | null
           name?: string
+          phone?: string | null
           role?: string
           user_id?: string | null
         }

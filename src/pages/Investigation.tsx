@@ -42,6 +42,7 @@ import { ApprovalPanel, VerificationCenter, BreakerMonitor, SimulationPanel } fr
 import { RAGQuality, KnowledgeCandidates } from "@/components/knowledge-panels";
 import { InvestigationReplay } from "@/components/replay";
 import { computeCustomerEffort } from "@/lib/engine";
+import { humanValue } from "@/lib/format";
 import { normalizeVerification } from "@/lib/verification";
 
 export default function Investigation() {
@@ -115,7 +116,10 @@ export default function Investigation() {
       // refetch via db direct
       const fresh = await db.case(cs.id);
       queryClient.setQueryData(["case", caseId], fresh);
-      alert(`${res.ok ? "Action executed" : "Action blocked"}\n${JSON.stringify(res.result ?? res.gates, null, 2)}`);
+      const detail = res.result
+        ? Object.entries((res.result as Record<string, unknown>) ?? {}).map(([k, v]) => `${k}: ${humanValue(v)}`).join("\n")
+        : (res.detail ?? (res.blocked ? "Action blocked by the four-gate controller." : "Action executed."));
+      alert(`${res.ok ? "Action executed" : "Action blocked"}\n${detail}`);
     } catch (e) {
       alert(`Action failed: ${e instanceof Error ? e.message : String(e)}`);
     } finally {

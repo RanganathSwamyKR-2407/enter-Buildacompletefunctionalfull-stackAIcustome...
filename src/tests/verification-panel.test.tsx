@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { VerificationPanel, EvidencePanel } from "../../src/components/panels";
 import { normalizeVerification } from "../../src/lib/verification";
+import { humanLabel, humanValue, readableRows, initials } from "../../src/lib/format";
 
 const render = (node: React.ReactElement) => renderToStaticMarkup(node);
 
@@ -96,5 +97,31 @@ describe("EvidencePanel — safe with missing collections", () => {
     );
     expect(html).toContain("TXN-1");
     expect(html).toContain("FACT");
+  });
+});
+
+describe("readable formatting helpers (no raw JSON in UI)", () => {
+  it("humanLabel converts internal keys to readable labels", () => {
+    expect(humanLabel("automation_paused")).toBe("Automation Paused");
+    expect(humanLabel("duplicate_payment")).toBe("Duplicate Payment");
+    expect(humanLabel("")).toBe("Not available");
+  });
+  it("humanValue formats booleans/null/objects readably", () => {
+    expect(humanValue(true)).toBe("Yes");
+    expect(humanValue(false)).toBe("No");
+    expect(humanValue(null)).toBe("Not available");
+    expect(humanValue(undefined)).toBe("Not available");
+    expect(humanValue({ a: 1, b: "x" })).toContain("A: 1");
+  });
+  it("readableRows never throws on non-object input", () => {
+    expect(readableRows(undefined)).toEqual([]);
+    expect(readableRows(null)).toEqual([]);
+    expect(readableRows("nope" as never)).toEqual([]);
+    expect(readableRows({ duplicate: true, amount: 2499 })).toContainEqual({ label: "Duplicate", value: "Yes" });
+  });
+  it("initials derive from a display name", () => {
+    expect(initials("Ranganath Swamy")).toBe("RS");
+    expect(initials("R. Kumar")).toBe("RK");
+    expect(initials("")).toBe("?");
   });
 });

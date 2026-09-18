@@ -2,7 +2,7 @@ import { Brain, AlertTriangle, GitCompareArrows, Timer, LifeBuoy, Eye, Zap } fro
 import type { CaseRow, CaseEvent, Contradiction, GateResult } from "@/lib/types";
 import { SectionCard } from "@/components/panels";
 import { Badge } from "@/components/ui/badge";
-import { classNames, confidenceLabel, fmtDate, inr } from "@/lib/format";
+import { classNames, confidenceLabel, fmtDate, inr, humanLabel, humanValue } from "@/lib/format";
 import { assessUncertainty, computeCustomerEffort } from "@/lib/engine";
 import type { UncertaintyResult } from "@/lib/engine";
 
@@ -224,7 +224,16 @@ export function HandoffSummary({ caseRow, events }: { caseRow: CaseRow; events?:
       <Handoff k="WHAT WE DON'T KNOW" v={unknown.length ? unknown.slice(0, 5).join("; ") : "Nothing flagged"} />
       <Handoff k="WHAT WAS ATTEMPTED" v={attempted} />
       <Handoff k="WHY AUTOMATION STOPPED" v={automationStopped} />
-      <Handoff k="RECOMMENDED NEXT STEP" v={(caseRow.recommended_action as Record<string, unknown>)?.action ? JSON.stringify(caseRow.recommended_action) : "Review evidence and proceed manually."} />
+      <Handoff
+        k="RECOMMENDED NEXT STEP"
+        v={
+          (caseRow.recommended_action as Record<string, unknown>)?.action
+            ? Object.entries(caseRow.recommended_action as Record<string, unknown>)
+                .map(([k, v]) => `${humanLabel(k)}: ${humanValue(v)}`)
+                .join(" · ")
+            : "Review evidence and proceed manually."
+        }
+      />
       <div className="mt-2 text-[11px] text-muted-foreground">{(events ?? []).length} investigation events recorded · {fmtDate(caseRow.updated_at)}</div>
     </SectionCard>
   );

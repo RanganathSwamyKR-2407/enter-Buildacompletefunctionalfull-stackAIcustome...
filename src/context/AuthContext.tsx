@@ -17,6 +17,8 @@ export interface AuthState {
   staffRole: string | null;
   customerId: string | null;
   displayName: string | null;
+  avatarUrl: string | null;
+  refreshIdentity: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState>({
@@ -26,6 +28,8 @@ const AuthContext = createContext<AuthState>({
   staffRole: null,
   customerId: null,
   displayName: null,
+  avatarUrl: null,
+  refreshIdentity: async () => {},
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -35,32 +39,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [staffRole, setStaffRole] = useState<string | null>(null);
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState<string | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   const loadIdentity = useCallback(async (uid: string) => {
     try {
       const { data: staff } = await supabase
         .from("resolveai_staff")
-        .select("role, name")
+        .select("role, name, display_name, avatar_url")
         .eq("user_id", uid)
         .maybeSingle();
       if (staff) {
-        setStaffRole((staff as { role: string }).role);
-        setDisplayName((staff as { name: string }).name);
+        const s = staff as { role: string; name: string; display_name: string | null; avatar_url: string | null };
+        setStaffRole(s.role);
+        setDisplayName(s.display_name ?? s.name);
+        setAvatarUrl(s.avatar_url);
         return;
       }
       const { data: customer } = await supabase
         .from("resolveai_customers")
-        .select("id, name")
+        .select("id, name, display_name, avatar_url")
         .eq("user_id", uid)
         .maybeSingle();
       if (customer) {
-        setCustomerId((customer as { id: string }).id);
-        setDisplayName((customer as { name: string }).name);
+        const c = customer as { id: string; name: string; display_name: string | null; avatar_url: string | null };
+        setCustomerId(c.id);
+        setDisplayName(c.display_name ?? c.name);
+        setAvatarUrl(c.avatar_url);
       }
     } catch {
       // identity lookup failure — leave unset
     }
   }, []);
+
+  const refreshIdentity = useCallback(async () => {
+    if (user?.id) await loadIdentity(user.id);
+  }, [user?.id, loadIdentity]);
 
   useEffect(() => {
     supabase.auth.onAuthStateChange((_event, s) => {
@@ -70,6 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setStaffRole(null);
         setCustomerId(null);
         setDisplayName(null);
+        setAvatarUrl(null);
         // Deferred call (deadlock trap)
         setTimeout(() => loadIdentity(s.user!.id), 0);
         // Associate a verified OAuth/email identity with any existing profile
@@ -79,6 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setStaffRole(null);
         setCustomerId(null);
         setDisplayName(null);
+        setAvatarUrl(null);
       }
     });
     supabase.auth.getSession().then(({ data }) => {
@@ -93,7 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, session, loading, staffRole, customerId, displayName }}
+      value={{ user, session, loading, staffRole, customerId, displayName, avatarUrl, refreshIdentity }}
     >
       {children}
     </AuthContext.Provider>

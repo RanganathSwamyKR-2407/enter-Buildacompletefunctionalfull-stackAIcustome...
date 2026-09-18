@@ -1,7 +1,7 @@
 import { ScrollText } from "lucide-react";
 import type { AuditLog } from "@/lib/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { fmtDate } from "@/lib/format";
+import { fmtDate, readableRows } from "@/lib/format";
 import { classNames } from "@/lib/format";
 
 export function AuditTimeline({ logs, limit = 40 }: { logs?: AuditLog[]; limit?: number }) {
@@ -28,13 +28,15 @@ export function AuditTimeline({ logs, limit = 40 }: { logs?: AuditLog[]; limit?:
                 </div>
                 <div className={classNames("mt-0.5 text-[11px] text-muted-foreground")}>
                   actor: {log.actor}
-                  {Object.keys(log.decision ?? {}).length > 0 && (
-                    <span className="ml-2">decision: {JSON.stringify(log.decision).slice(0, 120)}</span>
-                  )}
+                {readableRows(log.decision, 3).length > 0 && (
+                  <span className="ml-2">
+                    decision: {readableRows(log.decision, 3).map((r) => `${r.label}: ${r.value}`).join(" · ")}
+                  </span>
+                )}
                 </div>
                 {log.verification && Object.keys(log.verification).length > 0 && (
-                  <div className="mt-0.5 font-mono text-[10px] text-muted-foreground/70">
-                    {JSON.stringify(log.verification).slice(0, 160)}
+                  <div className="mt-0.5 text-[11px] text-muted-foreground/70">
+                    {readableRows(log.verification, 3).map((r) => `${r.label}: ${r.value}`).join(" · ")}
                   </div>
                 )}
               </div>
