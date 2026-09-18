@@ -19,6 +19,11 @@ export default {
 			}
 		},
 		extend: {
+			boxShadow: {
+				card: 'var(--shadow-card)',
+				pop: 'var(--shadow-pop)',
+				glow: 'var(--shadow-glow)',
+			},
 			colors: {
 				border: 'hsl(var(--border))',
 				input: 'hsl(var(--input))',
