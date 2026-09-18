@@ -44,7 +44,23 @@ async function handleChat(token: string | null, body: Record<string, unknown>): 
   if (!message) return jsonResponse({ error: "message_required" }, 400);
 
   let customerId: string | null = null;
-  if (body.customer_id) {
+  if (body.case_uuid) {
+    // Continue path: the customer is the one who owns the existing case.
+    // Staff may continue any case; customers only their own.
+    const { data: cRow } = await db
+      .from("resolveai_cases")
+      .select("customer_id")
+      .eq("id", String(body.case_uuid))
+      .maybeSingle();
+    if (!cRow) return jsonResponse({ error: "case_not_found" }, 404);
+    const targetCustomer = String((cRow as { customer_id: string }).customer_id);
+    const isStaff = Boolean(caller.staffRole);
+    const ownsCustomer = caller.customerId === targetCustomer;
+    if (!isStaff && !ownsCustomer) {
+      return jsonResponse({ error: "unauthorized_customer" }, 403);
+    }
+    customerId = targetCustomer;
+  } else if (body.customer_id) {
     const isStaff = Boolean(caller.staffRole);
     const ownsCustomer = caller.customerId === String(body.customer_id);
     if (isStaff || ownsCustomer) {
