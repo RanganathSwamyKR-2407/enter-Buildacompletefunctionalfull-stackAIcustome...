@@ -3200,13 +3200,17 @@ async function handleEscalate(token: string | null, body: Record<string, unknown
   return jsonResponse({ ok: true, case_id: cs.case_id, score: esc.score, reasons: esc.reasons, passport });
 }
 
-async function handleAnalytics(): Promise<Response> {
+async function handleAnalytics(token: string | null): Promise<Response> {
+  const caller = await resolveCaller(token);
+  if (!caller.staffRole) return jsonResponse({ error: "forbidden", detail: "Staff role required" }, 403);
   const { data, error } = await db.rpc("resolveai_analytics_snapshot");
   if (error) throw error;
   return jsonResponse({ ok: true, analytics: data });
 }
 
-async function handleIncidents(): Promise<Response> {
+async function handleIncidents(token: string | null): Promise<Response> {
+  const caller = await resolveCaller(token);
+  if (!caller.staffRole) return jsonResponse({ error: "forbidden", detail: "Staff role required" }, 403);
   const { data: counts } = await db.from("resolveai_incident_cases").select("incident_id, count:case_id");
   if (counts) {
     for (const row of counts as { incident_id: string; count: number }[]) {
@@ -3249,8 +3253,13 @@ const DEMO_ACCOUNTS: DemoAccount[] = [
   { email: "admin@resolveai.demo", password: "ResolveAI@123", name: "ResolveAI Admin", role: "admin", customerCode: null },
 ];
 
-async function handleBootstrap(): Promise<Response> {
+async function handleBootstrap(token: string | null): Promise<Response> {
   if (!BOOT_ANON_KEY) return jsonResponse({ error: "anon_key_missing" }, 500);
+  const caller = await resolveCaller(token);
+  const demoEmails = new Set(["customer@resolveai.demo","tier1@resolveai.demo","tier2@resolveai.demo","manager@resolveai.demo","admin@resolveai.demo"]);
+  if (!caller.staffRole && !(caller.userId && demoEmails.has(await callerEmail(token)))) {
+    return jsonResponse({ error: "forbidden", detail: "Staff or demo account required" }, 403);
+  }
   const results: { email: string; status: string }[] = [];
   for (const account of DEMO_ACCOUNTS) {
     // Standard client-facing signup endpoint (auto-confirm enabled). A DB
@@ -3283,7 +3292,9 @@ async function handleBootstrap(): Promise<Response> {
   return jsonResponse({ ok: true, accounts: results });
 }
 
-async function handleSelfcheck(): Promise<Response> {
+async function handleSelfcheck(token: string | null): Promise<Response> {
+  const caller = await resolveCaller(token);
+  if (!caller.staffRole) return jsonResponse({ error: "forbidden", detail: "Staff role required" }, 403);
   const results: Record<string, unknown>[] = [];
 
   // ---- Scenario A ----
@@ -3594,6 +3605,16 @@ async function handleLinkAccount(token: string | null): Promise<Response> {
 }
 
 
+async function callerEmail(token: string | null): Promise<string> {
+  if (!token) return "";
+  const res = await fetch(`${AUTH_SUPABASE_URL}/auth/v1/user`, {
+    headers: { apikey: AUTH_ANON_KEY, Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) return "";
+  const j = (await res.json()) as { email?: string };
+  return j.email ?? "";
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
@@ -3610,13 +3631,13 @@ Deno.serve(async (req) => {
       case "escalate":
         return await handleEscalate(token, body);
       case "analytics":
-        return await handleAnalytics();
+        return await handleAnalytics(token);
       case "incidents":
-        return await handleIncidents();
+        return await handleIncidents(token);
       case "bootstrap":
-        return await handleBootstrap();
+        return await handleBootstrap(token);
       case "selfcheck":
-        return await handleSelfcheck();
+        return await handleSelfcheck(token);
       case "knowledge_candidates":
         return await handleKnowledgeCandidates(token, body);
       case "health":

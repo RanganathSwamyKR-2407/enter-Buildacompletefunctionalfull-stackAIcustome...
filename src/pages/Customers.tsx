@@ -7,6 +7,7 @@ import { Customer360 } from "@/components/customer-360";
 import { CustomerJourney, EffortScore } from "@/components/customer-panels";
 import { PageHeader, SkeletonRows } from "@/components/widgets";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { inr, pct } from "@/lib/format";
 import type { Customer, Order, Payment, Refund, Ticket, CaseRow, Escalation } from "@/lib/types";
@@ -14,9 +15,11 @@ import type { Customer, Order, Payment, Refund, Ticket, CaseRow, Escalation } fr
 export default function Customers() {
   const { data: customers, isLoading } = useCustomers();
   const [q, setQ] = useState("");
+  const [showAll, setShowAll] = useState(false);
   const filtered = (customers ?? []).filter((c) =>
     `${c.name} ${c.customer_code} ${c.city ?? ""}`.toLowerCase().includes(q.toLowerCase()),
   ) as Customer[];
+  const visible = showAll ? filtered : filtered.slice(0, 5);
 
   return (
     <div>
@@ -25,43 +28,59 @@ export default function Customers() {
       {isLoading ? (
         <SkeletonRows rows={8} />
       ) : (
-        <div className="overflow-x-auto rounded-md border">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                <th className="px-3 py-2">Customer</th>
-                <th className="px-3 py-2">Tier</th>
-                <th className="px-3 py-2">Lifetime value</th>
-                <th className="px-3 py-2">Orders</th>
-                <th className="px-3 py-2">Refunds</th>
-                <th className="px-3 py-2">Churn risk</th>
-                <th className="px-3 py-2">City</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((c) => (
-                <tr key={c.id} className="border-b last:border-0 hover:bg-muted/30">
-                  <td className="px-3 py-2">
-                    <Link to={`/customers/${c.id}`} className="font-medium text-brand hover:underline">
-                      {c.name}
-                    </Link>
-                    <div className="text-[11px] text-muted-foreground">{c.customer_code}</div>
-                  </td>
-                  <td className="px-3 py-2">
-                    <Badge className={c.tier === "gold" ? "bg-warning-soft text-warning" : c.tier === "premium" ? "bg-brand-soft text-brand" : ""}>
-                      {c.tier}
-                    </Badge>
-                  </td>
-                  <td className="px-3 py-2 font-medium">{inr(c.lifetime_value)}</td>
-                  <td className="px-3 py-2">{c.orders_count}</td>
-                  <td className="px-3 py-2">{c.refunds_count}</td>
-                  <td className={`px-3 py-2 font-medium ${c.churn_risk >= 50 ? "text-danger" : ""}`}>{pct(c.churn_risk)}</td>
-                  <td className="px-3 py-2 text-muted-foreground">{c.city ?? "—"}</td>
+        <>
+          <div className="overflow-x-auto rounded-md border">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                  <th className="px-3 py-2">Customer</th>
+                  <th className="px-3 py-2">Tier</th>
+                  <th className="px-3 py-2">Lifetime value</th>
+                  <th className="px-3 py-2">Orders</th>
+                  <th className="px-3 py-2">Refunds</th>
+                  <th className="px-3 py-2">Churn risk</th>
+                  <th className="px-3 py-2">City</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {visible.map((c) => (
+                  <tr key={c.id} className="border-b last:border-0 hover:bg-muted/30">
+                    <td className="px-3 py-2">
+                      <Link to={`/customers/${c.id}`} className="font-medium text-brand hover:underline">
+                        {c.name}
+                      </Link>
+                      <div className="text-[11px] text-muted-foreground">{c.customer_code}</div>
+                    </td>
+                    <td className="px-3 py-2">
+                      <Badge className={c.tier === "gold" ? "bg-warning-soft text-warning" : c.tier === "premium" ? "bg-brand-soft text-brand" : ""}>
+                        {c.tier}
+                      </Badge>
+                    </td>
+                    <td className="px-3 py-2 font-medium">{inr(c.lifetime_value)}</td>
+                    <td className="px-3 py-2">{c.orders_count}</td>
+                    <td className="px-3 py-2">{c.refunds_count}</td>
+                    <td className={`px-3 py-2 font-medium ${c.churn_risk >= 50 ? "text-danger" : ""}`}>{pct(c.churn_risk)}</td>
+                    <td className="px-3 py-2 text-muted-foreground">{c.city ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {!showAll && filtered.length > 5 && (
+            <div className="mt-2 text-center">
+              <Button variant="ghost" size="sm" onClick={() => setShowAll(true)}>
+                View all customers ({filtered.length})
+              </Button>
+            </div>
+          )}
+          {showAll && filtered.length > 5 && (
+            <div className="mt-2 text-center">
+              <Button variant="ghost" size="sm" onClick={() => setShowAll(false)}>
+                Show fewer
+              </Button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

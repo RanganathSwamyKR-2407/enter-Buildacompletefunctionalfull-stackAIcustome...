@@ -1,8 +1,8 @@
-import { Brain, AlertTriangle, GitCompareArrows, Timer, LifeBuoy } from "lucide-react";
+import { Brain, AlertTriangle, GitCompareArrows, Timer, LifeBuoy, Eye, Zap } from "lucide-react";
 import type { CaseRow, CaseEvent, Contradiction, GateResult } from "@/lib/types";
 import { SectionCard } from "@/components/panels";
 import { Badge } from "@/components/ui/badge";
-import { classNames, confidenceLabel, fmtDate } from "@/lib/format";
+import { classNames, confidenceLabel, fmtDate, inr } from "@/lib/format";
 import { assessUncertainty, computeCustomerEffort } from "@/lib/engine";
 import type { UncertaintyResult } from "@/lib/engine";
 
@@ -249,3 +249,45 @@ function Handoff({ k, v }: { k: string; v: string }) {
 }
 
 export { computeCustomerEffort };
+
+// ---------------------------------------------------------------------
+// 26 / E. AI Action Preview — shows what the system is about to do and
+// why, before it passes through the deterministic gates. It is not a
+// bypass: the Four-Gate Controller still authorizes execution.
+// ---------------------------------------------------------------------
+export function ActionPreview({ caseRow }: { caseRow: CaseRow }) {
+  const rec = (caseRow.recommended_action ?? {}) as Record<string, unknown>;
+  const action = String(rec.action ?? "—");
+  const gates = (caseRow.gates ?? {}) as Record<string, GateResult>;
+  const riskStatus = String((caseRow.risk_result as GateResult)?.status ?? "—");
+  const confidence = confidenceLabel(caseRow.root_cause_confidence ?? caseRow.routing_confidence);
+  const evidenceIds = (caseRow.evidence ?? []).slice(0, 4).map((e) => e.label);
+  const expected =
+    action === "issue_refund"
+      ? `Refund ${inr(Number(rec.amount ?? 0))} issued and independently verified (payment marked refunded).`
+      : action === "update_ticket"
+        ? "Ticket updated with the investigation outcome."
+        : action === "send_message"
+          ? "Customer informed with a grounded reply."
+          : "No autonomous action recommended.";
+
+  return (
+    <SectionCard title="AI Action Preview" icon={<Eye className="h-4 w-4 text-brand" />}>
+      <div className="rounded border border-brand/30 bg-brand-soft/20 p-2.5 text-[13px]">
+        <div className="flex items-center gap-2 font-semibold">
+          <Zap className="h-4 w-4 text-brand" /> ACTION — {action}
+        </div>
+        <div className="mt-1 text-xs text-muted-foreground">Reason: {caseRow.routing_reason ?? caseRow.resolution_status ?? "Decision from investigation"}</div>
+      </div>
+      <div className="mt-2 space-y-1.5 text-[13px]">
+        <Row k="Evidence" v={evidenceIds.length ? evidenceIds.join(" · ") : "—"} />
+        <Row k="Policy" v={String((caseRow.policy_result as Record<string, unknown>)?.policy_id ?? "—")} />
+        <Row k="Expected result" v={expected} />
+        <Row k="Risk / confidence" v={`${riskStatus} · ${confidence}`} />
+        <div className="mt-1 rounded bg-muted/40 px-2 py-1.5 text-[11px] text-muted-foreground">
+          Preview is informational. Execution still requires the Four-Gate Controller ({Object.values(gates).map((g) => g.status).join(" / ")}) and is verified + audited.
+        </div>
+      </div>
+    </SectionCard>
+  );
+}

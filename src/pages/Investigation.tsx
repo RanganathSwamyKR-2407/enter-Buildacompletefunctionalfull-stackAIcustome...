@@ -37,7 +37,7 @@ import {
 } from "lucide-react";
 import { slaRemaining, fmtDate, inr, confidenceLabel, classNames } from "@/lib/format";
 import type { CaseRow, CaseEvent, Escalation, AuditLog, Message } from "@/lib/types";
-import { DecisionTrace, UncertaintyPanel, ContradictionMatrix, SLAIntelligence, HandoffSummary } from "@/components/ops-panels";
+import { DecisionTrace, UncertaintyPanel, ContradictionMatrix, SLAIntelligence, HandoffSummary, ActionPreview } from "@/components/ops-panels";
 import { ApprovalPanel, VerificationCenter, BreakerMonitor, SimulationPanel } from "@/components/action-center";
 import { RAGQuality, KnowledgeCandidates } from "@/components/knowledge-panels";
 import { InvestigationReplay } from "@/components/replay";
@@ -228,6 +228,7 @@ export default function Investigation() {
           <CaseEffortCard caseRow={cs} escalated={Boolean(escalation)} />
 
           <DecisionTrace caseRow={cs} />
+          <ActionPreview caseRow={cs} />
           <UncertaintyPanel caseRow={cs} />
           <SLAIntelligence caseRow={cs} />
           <InvestigationReplay events={(events ?? []) as CaseEvent[]} />

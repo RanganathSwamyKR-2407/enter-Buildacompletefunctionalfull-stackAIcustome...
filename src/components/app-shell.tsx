@@ -66,22 +66,27 @@ const ROLE_LABEL: Record<string, string> = {
 export function AppShell() {
   const { staffRole, customerId, displayName } = useAuth();
   const roleKey = staffRole ?? (customerId ? "customer" : null);
+  const isCustomer = Boolean(customerId) && !staffRole;
+
+  const visibleNav = isCustomer
+    ? [{ group: "My Support", items: [{ to: "/chat", label: "Customer Chat", icon: MessageSquare }] }]
+    : NAV;
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-muted/30">
       {/* Sidebar */}
       <aside className="hidden w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:flex">
-        <Link to="/queue" className="flex h-14 items-center gap-2 border-b border-sidebar-border px-4">
+        <Link to={isCustomer ? "/chat" : "/queue"} className="flex h-14 items-center gap-2 border-b border-sidebar-border px-4">
           <span className="flex h-8 w-8 items-center justify-center rounded-md bg-brand text-brand-foreground">
             <Radio className="h-4 w-4" />
           </span>
           <span className="text-sm font-semibold tracking-tight">ResolveAI</span>
           <span className="ml-1 rounded bg-brand-soft px-1.5 py-0.5 text-[10px] font-medium text-brand">
-            OPS
+            {isCustomer ? "CUSTOMER" : "OPS"}
           </span>
         </Link>
         <nav className="flex-1 overflow-y-auto p-3">
-          {NAV.map((group) => (
+          {visibleNav.map((group) => (
             <div key={group.group} className="mb-4">
               <div className="px-2 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
                 {group.group}

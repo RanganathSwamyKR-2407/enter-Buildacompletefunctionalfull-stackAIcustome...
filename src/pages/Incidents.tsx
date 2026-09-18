@@ -7,7 +7,7 @@ import { IncidentPanel } from "@/components/incident-panel";
 import { TrendsPanel, ImpactPanel } from "@/components/knowledge-panels";
 import { Link } from "react-router-dom";
 import { StatusBadge } from "@/components/badges";
-import type { Incident, Customer } from "@/lib/types";
+import type { Incident, Customer, Escalation } from "@/lib/types";
 
 export default function Incidents() {
   const { data, isLoading } = useIncidents();
@@ -23,6 +23,14 @@ export default function Incidents() {
     },
   });
 
+  const { data: escalations } = useQuery({
+    queryKey: ["incidents-escalations"],
+    queryFn: async () => {
+      const { data } = await supabase.from("resolveai_escalations").select("case_id, score, status").limit(200);
+      return (data ?? []) as Escalation[];
+    },
+  });
+
   if (isLoading) return <SkeletonRows rows={5} />;
 
   const incidentCases = (incidentUuid: string | undefined) => {
@@ -30,6 +38,9 @@ export default function Incidents() {
     const linked = data?.incidents.find((i) => i.id === incidentUuid)?.linked_case_uuids ?? [];
     return (cases ?? []).filter((c) => linked.includes(c.id));
   };
+
+  const relatedEscalations = (caseUuids: string[]) =>
+    (escalations ?? []).filter((e) => caseUuids.includes(e.case_id));
 
   return (
     <div>
@@ -54,6 +65,15 @@ export default function Incidents() {
                 {inc.incident_id} · {inc.name}
               </div>
               <ImpactPanel incident={inc} cases={cases ?? []} customers={customers ?? new Map()} />
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                <span>Root cause / fingerprint: <b className="text-foreground">{inc.fingerprint_id ?? "—"}</b></span>
+                <span>Related escalations: <b className="text-foreground">{relatedEscalations(inc.linked_case_uuids ?? []).length}</b></span>
+                {relatedEscalations(inc.linked_case_uuids ?? []).slice(0, 3).map((e) => (
+                  <span key={e.id} className="rounded bg-danger-soft/50 px-1.5 py-0.5">
+                    esc {e.score}/100 · {e.status}
+                  </span>
+                ))}
+              </div>
               <div className="mt-3 grid gap-2 md:grid-cols-2">
                 {incidentCases(inc.id).slice(0, 8).map((c) => (
                   <Link key={c.id} to={`/investigations/${c.id}`} className="flex items-center justify-between rounded border px-2.5 py-1.5 text-[13px] hover:border-brand">

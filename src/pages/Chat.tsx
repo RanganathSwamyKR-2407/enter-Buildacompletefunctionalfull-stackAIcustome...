@@ -21,6 +21,7 @@ const SUGGESTIONS = [
 export default function Chat() {
   const { customerId, staffRole } = useAuth();
   const [customerIdState, setCustomerId] = useState<string | null>(customerId);
+  const [customerSearch, setCustomerSearch] = useState("");
   const [bubbles, setBubbles] = useState<ChatBubble[]>([]);
   const [sending, setSending] = useState(false);
 
@@ -149,6 +150,12 @@ export default function Chat() {
                 <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                   Act as customer (staff demo)
                 </label>
+                <input
+                  value={customerSearch}
+                  onChange={(e) => setCustomerSearch(e.target.value)}
+                  placeholder="Search customers…"
+                  className="mt-1 w-full rounded-md border bg-background px-2 py-1.5 text-[13px]"
+                />
                 <select
                   value={customerIdState ?? ""}
                   onChange={(e) => {
@@ -157,12 +164,19 @@ export default function Chat() {
                   }}
                   className="mt-1 w-full rounded-md border bg-background px-2 py-1.5 text-[13px]"
                 >
-                  {(allCustomers as Customer[]).map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.customer_code} — {c.name}
-                    </option>
-                  ))}
+                  <option value="">— choose customer —</option>
+                  {(allCustomers as Customer[])
+                    .filter((c) => !customerSearch || `${c.name} ${c.customer_code}`.toLowerCase().includes(customerSearch.toLowerCase()))
+                    .slice(0, 6)
+                    .map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.customer_code} — {c.name}
+                      </option>
+                    ))}
                 </select>
+                <div className="mt-1 text-[11px] text-muted-foreground">
+                  Showing up to 6 of {(allCustomers as Customer[]).length} — search to narrow.
+                </div>
               </CardContent>
             </Card>
           )}

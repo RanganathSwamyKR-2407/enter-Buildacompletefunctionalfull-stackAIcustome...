@@ -2,6 +2,7 @@ import { Navigate } from "react-router-dom";
 import { AppShell } from "@/components/app-shell";
 import { useAuth } from "@/context/AuthContext";
 import Login from "@/pages/Login";
+import ResetPassword from "@/pages/ResetPassword";
 import Chat from "@/pages/Chat";
 import Queue from "@/pages/Queue";
 import Investigation from "@/pages/Investigation";
@@ -29,10 +30,21 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function HomeRedirect() {
+  const { staffRole, customerId, loading } = useAuth();
+  if (loading) return null;
+  // Customers land on their chat; staff land on the operations queue.
+  return <Navigate to={staffRole ? "/queue" : customerId ? "/chat" : "/login"} replace />;
+}
+
 export const routers = [
   {
     path: "/login",
     element: <Login />,
+  },
+  {
+    path: "/reset-password",
+    element: <ResetPassword />,
   },
   {
     path: "/",
@@ -42,7 +54,7 @@ export const routers = [
       </RequireAuth>
     ),
     children: [
-      { index: true, element: <Navigate to="/queue" replace /> },
+      { index: true, element: <HomeRedirect /> },
       { path: "chat", element: <Chat /> },
       { path: "queue", element: <Queue /> },
       { path: "investigations", element: <Navigate to="/queue" replace /> },
