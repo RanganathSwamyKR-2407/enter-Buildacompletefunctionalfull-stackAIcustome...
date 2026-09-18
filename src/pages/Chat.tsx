@@ -121,6 +121,8 @@ export default function Chat() {
       // return immediately so the live investigation can be opened mid-flight.
       const started = await api.chatStart(text, customerIdState ?? undefined);
       const liveId = `live-${Date.now()}`;
+      const liveCaseId = started.case_id;
+      const liveUuid = started.case_uuid;
       setBubbles((prev) => [
         ...prev,
         {
@@ -128,34 +130,48 @@ export default function Chat() {
           role: "assistant",
           content: "Investigation started — opening live pipeline.",
           status: "INVESTIGATION IN PROGRESS",
-          caseId: started.case_id,
-          caseUuid: started.case_uuid,
-          investigationLink: started.case_uuid ? `/investigations/${started.case_uuid}` : undefined,
+          caseId: liveCaseId,
+          caseUuid: liveUuid,
+          investigationLink: liveUuid ? `/investigations/${liveUuid}` : undefined,
           live: true,
         },
       ]);
       // Phase 2 — continue: run the full pipeline (events stream to the
-      // Glass Box via realtime). Fire-and-forget; resolve into the reply.
-      const res = await api.chatContinue(started.case_uuid, started.conversation_id, text);
-      setBubbles((prev) => [
-        ...prev.filter((b) => b.id !== liveId),
-        {
-          id: `a-${Date.now()}`,
-          role: "assistant",
-          content: res.reply,
-          status: `${res.status} · ${res.resolution_status ?? ""}`,
-          caseId: res.case_id,
-          caseUuid: res.case_uuid,
-          investigationLink: res.case_uuid ? `/investigations/${res.case_uuid}` : undefined,
-        },
-      ]);
+      // Glass Box via realtime). A hard timeout prevents the UI from ever
+      // appearing stuck; the live investigation keeps running server-side.
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 100000);
+      try {
+        const res = await api.chatContinue(started.case_uuid, started.conversation_id, text, controller.signal);
+        setBubbles((prev) => [
+          ...prev.filter((b) => b.id !== liveId),
+          {
+            id: `a-${Date.now()}`,
+            role: "assistant",
+            content: res.reply,
+            status: `${res.status} · ${res.resolution_status ?? ""}`,
+            caseId: res.case_id,
+            caseUuid: res.case_uuid,
+            investigationLink: res.case_uuid ? `/investigations/${res.case_uuid}` : undefined,
+          },
+        ]);
+      } finally {
+        clearTimeout(timer);
+      }
     } catch (e) {
+      const aborted = e instanceof Error && e.name === "AbortError";
       setBubbles((prev) => [
         ...prev,
         {
           id: `e-${Date.now()}`,
           role: "assistant",
-          content: `An error occurred: ${e instanceof Error ? e.message : String(e)}`,
+          content: aborted
+            ? "Investigation is still running — open the live console to watch it complete."
+            : `An error occurred: ${e instanceof Error ? e.message : String(e)}`,
+          status: aborted ? "STILL PROCESSING" : undefined,
+          caseId: aborted ? liveCaseId : undefined,
+          caseUuid: aborted ? liveUuid : undefined,
+          investigationLink: aborted && liveUuid ? `/investigations/${liveUuid}` : undefined,
         },
       ]);
     } finally {

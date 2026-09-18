@@ -10,8 +10,8 @@ import type {
 
 const FN = "resolveai";
 
-async function invoke<T>(body: Record<string, unknown>): Promise<T> {
-  const { data, error } = await supabase.functions.invoke(FN, { body });
+async function invoke<T>(body: Record<string, unknown>, signal?: AbortSignal): Promise<T> {
+  const { data, error } = await supabase.functions.invoke(FN, { body, signal });
   if (error) {
     // Surface the backend's own error message when available instead of a
     // generic "non-2xx status code".
@@ -51,13 +51,16 @@ export const api = {
     invoke<ChatStartResult>({ route: "chat", message, customer_id: customerId, start_only: true }),
 
   /** Live two-phase flow (continue): run the full pipeline on an existing case, streaming events via realtime. */
-  chatContinue: (caseUuid: string, conversationId?: string | null, message?: string) =>
-    invoke<ChatResult>({
-      route: "chat",
-      case_uuid: caseUuid,
-      conversation_id: conversationId ?? undefined,
-      message: message ?? undefined,
-    }),
+  chatContinue: (caseUuid: string, conversationId?: string | null, message?: string, signal?: AbortSignal) =>
+    invoke<ChatResult>(
+      {
+        route: "chat",
+        case_uuid: caseUuid,
+        conversation_id: conversationId ?? undefined,
+        message: message ?? undefined,
+      },
+      signal,
+    ),
 
   /** Run a staff-initiated gated action on a case. Supports human approval:
    * pass `human_decision: "approve" | "reject"` and optionally a modified amount. */
