@@ -6,6 +6,7 @@ import ResetPassword from "@/pages/ResetPassword";
 import Chat from "@/pages/Chat";
 import Queue from "@/pages/Queue";
 import Investigation from "@/pages/Investigation";
+import Investigations from "@/pages/Investigations";
 import Customers, { CustomerDetail } from "@/pages/Customers";
 import Orders from "@/pages/Orders";
 import Payments from "@/pages/Payments";
@@ -59,7 +60,7 @@ export const routers = [
       { index: true, element: <HomeRedirect /> },
       { path: "chat", element: <Chat /> },
       { path: "queue", element: <Queue /> },
-      { path: "investigations", element: <Navigate to="/queue" replace /> },
+      { path: "investigations", element: <Investigations /> },
       { path: "investigations/:caseId", element: <Investigation /> },
       { path: "customers", element: <Customers /> },
       { path: "customers/:id", element: <CustomerDetail /> },
