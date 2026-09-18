@@ -29,6 +29,14 @@ export default function Chat() {
     setCustomerId(customerId);
   }, [customerId]);
 
+  // Staff convenience: auto-select the first customer so the chat input is
+  // immediately usable instead of requiring a manual pick.
+  useEffect(() => {
+    if (!customerIdState && staffRole && allCustomers && allCustomers.length > 0) {
+      setCustomerId((allCustomers as Customer[])[0].id);
+    }
+  }, [customerIdState, staffRole, allCustomers]);
+
   // Staff can pick any seeded customer for demo purposes.
   const { data: allCustomers } = useQuery({
     queryKey: ["customers-mini"],
