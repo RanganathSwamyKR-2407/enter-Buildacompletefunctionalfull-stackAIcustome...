@@ -278,6 +278,11 @@ export default function Chat() {
         {/* Chat */}
         <Card className="min-w-0">
           <CardContent className="h-full p-0">
+            {!customerIdState && staffRole && (
+              <div className="border-b border-warning/30 bg-warning-soft/40 px-3 py-2 text-xs text-warning">
+                Select a customer above to start a conversation and investigation.
+              </div>
+            )}
             <ChatWindow
               bubbles={bubbles.length > 0 ? bubbles : initialBubbles}
               sending={sending}

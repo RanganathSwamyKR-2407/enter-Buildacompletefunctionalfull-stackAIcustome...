@@ -12,7 +12,22 @@ const FN = "resolveai";
 
 async function invoke<T>(body: Record<string, unknown>): Promise<T> {
   const { data, error } = await supabase.functions.invoke(FN, { body });
-  if (error) throw new Error(error.message);
+  if (error) {
+    // Surface the backend's own error message when available instead of a
+    // generic "non-2xx status code".
+    const res = (error as { context?: Response }).context;
+    if (res) {
+      try {
+        const text = await res.text();
+        const parsed = JSON.parse(text) as { error?: string; detail?: string };
+        throw new Error(parsed.detail || parsed.error || error.message);
+      } catch (e) {
+        if (e instanceof SyntaxError) throw new Error(error.message);
+        throw e;
+      }
+    }
+    throw new Error(error.message);
+  }
   return data as T;
 }
 
