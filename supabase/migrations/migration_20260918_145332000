@@ -1,0 +1,8 @@
+alter table public.resolveai_customers enable row level security;
+create policy resolveai_customers_select_staff on public.resolveai_customers for select using (public.resolveai_current_staff_role() is not null);
+create policy resolveai_customers_select_own on public.resolveai_customers for select using (public.resolveai_current_customer_id() = id);
+create policy resolveai_customers_write_staff on public.resolveai_customers for all using (public.resolveai_current_staff_role() is not null);
+alter table public.resolveai_conversations enable row level security;
+create policy resolveai_conversations_select_staff on public.resolveai_conversations for select using (public.resolveai_current_staff_role() is not null);
+create policy resolveai_conversations_select_own on public.resolveai_conversations for select using (public.resolveai_current_customer_id() = customer_id);
+create policy resolveai_conversations_write_staff on public.resolveai_conversations for all using (public.resolveai_current_staff_role() is not null);

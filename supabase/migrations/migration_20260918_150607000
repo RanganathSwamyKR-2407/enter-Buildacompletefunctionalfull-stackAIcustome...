@@ -1,0 +1,24 @@
+create or replace function public.resolveai_search_knowledge(query text, max_results int default 5)
+returns table (
+  chunk_id uuid,
+  document_id uuid,
+  doc_id text,
+  title text,
+  category text,
+  content text,
+  chunk_index int,
+  score real
+)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select k.id, k.document_id, d.doc_id, d.title, d.category, k.content, k.chunk_index,
+         ts_rank_cd(k.content_search, websearch_to_tsquery('english', query)) as score
+  from public.resolveai_knowledge_chunks k
+  join public.resolveai_knowledge_documents d on d.id = k.document_id
+  where k.content_search @@ websearch_to_tsquery('english', query)
+  order by score desc
+  limit max_results;
+$$;

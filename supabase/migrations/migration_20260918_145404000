@@ -1,0 +1,3 @@
+alter table public.resolveai_case_events enable row level security;
+create policy resolveai_case_events_select_staff on public.resolveai_case_events for select using (public.resolveai_current_staff_role() is not null);
+create policy resolveai_case_events_select_own on public.resolveai_case_events for select using (exists (select 1 from public.resolveai_cases c where c.id = resolveai_case_events.case_id and public.resolveai_current_customer_id() = c.customer_id));

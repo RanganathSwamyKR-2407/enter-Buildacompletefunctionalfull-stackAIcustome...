@@ -1,0 +1,1 @@
+update public.resolveai_customers set customer_code = 'CUST-'||lpad((1000 + i)::text,4,'0') from generate_series(6,20) as g(i) where customer_code = 'CUST-'||lpad(i::text,4,'0');

@@ -1,0 +1,4 @@
+alter publication supabase_realtime add table public.resolveai_case_events;
+alter publication supabase_realtime add table public.resolveai_cases;
+alter publication supabase_realtime add table public.resolveai_escalations;
+alter publication supabase_realtime add table public.resolveai_messages;

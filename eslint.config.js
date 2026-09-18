@@ -10,7 +10,16 @@ export default tseslint.config(
   // noise (e.g. no-explicit-any in newly added shadcn components) and feeds
   // an AI "fix" loop against code that shouldn't change — every retry
   // billed. Ignore it wholesale; the user's own code stays fully linted.
-  { ignores: ["dist", "src/components/ui/**"] },
+  {
+    ignores: [
+      "dist",
+      "src/components/ui/**",
+      // Backend functions run in Deno on Enter Cloud; browser-global lint rules
+      // (Deno.*, fetch-only) don't apply there. The frontend lints the shared
+      // engine modules through src/ imports instead.
+      "supabase/**",
+    ],
+  },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ["**/*.{ts,tsx}"],

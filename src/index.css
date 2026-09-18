@@ -50,6 +50,23 @@
     --sidebar-border: 220 13% 91%;
 
     --sidebar-ring: 217.2 91.2% 59.8%;
+
+    /* ResolveAI enterprise ops palette */
+    --brand: 243 75% 59%;
+    --brand-foreground: 0 0% 100%;
+    --brand-soft: 243 75% 96%;
+    --success: 160 84% 39%;
+    --success-foreground: 0 0% 100%;
+    --success-soft: 158 64% 92%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 20 14% 10%;
+    --warning-soft: 40 94% 93%;
+    --danger: 0 72% 51%;
+    --danger-foreground: 0 0% 98%;
+    --danger-soft: 0 75% 95%;
+    --info: 199 89% 48%;
+    --info-foreground: 0 0% 100%;
+    --info-soft: 200 77% 93%;
   }
 
   .dark {
@@ -88,6 +105,22 @@
     --sidebar-accent-foreground: 240 4.8% 95.9%;
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+
+    --brand: 243 75% 65%;
+    --brand-foreground: 0 0% 100%;
+    --brand-soft: 243 55% 22%;
+    --success: 160 60% 45%;
+    --success-foreground: 0 0% 100%;
+    --success-soft: 158 45% 18%;
+    --warning: 38 92% 55%;
+    --warning-foreground: 20 14% 10%;
+    --warning-soft: 40 50% 20%;
+    --danger: 0 62% 55%;
+    --danger-foreground: 0 0% 98%;
+    --danger-soft: 0 45% 20%;
+    --info: 199 89% 55%;
+    --info-foreground: 0 0% 100%;
+    --info-soft: 200 50% 18%;
   }
 }
 

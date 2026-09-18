@@ -1,0 +1,4 @@
+alter table public.resolveai_messages enable row level security;
+create policy resolveai_messages_select_staff on public.resolveai_messages for select using (public.resolveai_current_staff_role() is not null);
+create policy resolveai_messages_select_own on public.resolveai_messages for select using (exists (select 1 from public.resolveai_conversations c where c.id = conversation_id and public.resolveai_current_customer_id() = c.customer_id));
+create policy resolveai_messages_write_staff on public.resolveai_messages for all using (public.resolveai_current_staff_role() is not null);

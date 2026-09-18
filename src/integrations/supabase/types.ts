@@ -3360,13 +3360,1103 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      resolveai_action_verifications: {
+        Row: {
+          action_id: string
+          case_id: string
+          checks: Json
+          created_at: string
+          id: string
+          overall: string
+        }
+        Insert: {
+          action_id: string
+          case_id: string
+          checks?: Json
+          created_at?: string
+          id?: string
+          overall: string
+        }
+        Update: {
+          action_id?: string
+          case_id?: string
+          checks?: Json
+          created_at?: string
+          id?: string
+          overall?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resolveai_action_verifications_action_id_fkey"
+            columns: ["action_id"]
+            referencedRelation: "resolveai_agent_actions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resolveai_action_verifications_case_id_fkey"
+            columns: ["case_id"]
+            referencedRelation: "resolveai_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resolveai_agent_actions: {
+        Row: {
+          action: string
+          agent_key: string
+          case_id: string
+          created_at: string
+          error: string | null
+          id: string
+          input: Json
+          output: Json
+          status: string
+        }
+        Insert: {
+          action: string
+          agent_key: string
+          case_id: string
+          created_at?: string
+          error?: string | null
+          id?: string
+          input?: Json
+          output?: Json
+          status: string
+        }
+        Update: {
+          action?: string
+          agent_key?: string
+          case_id?: string
+          created_at?: string
+          error?: string | null
+          id?: string
+          input?: Json
+          output?: Json
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resolveai_agent_actions_case_id_fkey"
+            columns: ["case_id"]
+            referencedRelation: "resolveai_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resolveai_agents: {
+        Row: {
+          agent_key: string
+          allowed_tools: Json
+          description: string
+          id: string
+          name: string
+          plan_steps: Json
+          specialties: Json
+        }
+        Insert: {
+          agent_key: string
+          allowed_tools?: Json
+          description: string
+          id?: string
+          name: string
+          plan_steps?: Json
+          specialties?: Json
+        }
+        Update: {
+          agent_key?: string
+          allowed_tools?: Json
+          description?: string
+          id?: string
+          name?: string
+          plan_steps?: Json
+          specialties?: Json
+        }
+        Relationships: []
+      }
+      resolveai_analytics_events: {
+        Row: {
+          case_id: string | null
+          created_at: string
+          customer_id: string | null
+          event_type: string
+          id: string
+          payload: Json
+        }
+        Insert: {
+          case_id?: string | null
+          created_at?: string
+          customer_id?: string | null
+          event_type: string
+          id?: string
+          payload?: Json
+        }
+        Update: {
+          case_id?: string | null
+          created_at?: string
+          customer_id?: string | null
+          event_type?: string
+          id?: string
+          payload?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resolveai_analytics_events_case_id_fkey"
+            columns: ["case_id"]
+            referencedRelation: "resolveai_cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resolveai_analytics_events_customer_id_fkey"
+            columns: ["customer_id"]
+            referencedRelation: "resolveai_customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resolveai_audit_logs: {
+        Row: {
+          action: string
+          actor: string
+          agent: string | null
+          authority: Json
+          case_id: string | null
+          created_at: string
+          decision: Json
+          evidence: Json
+          id: string
+          input: Json
+          policy: Json
+          result: Json
+          risk: Json
+          verification: Json
+        }
+        Insert: {
+          action: string
+          actor: string
+          agent?: string | null
+          authority?: Json
+          case_id?: string | null
+          created_at?: string
+          decision?: Json
+          evidence?: Json
+          id?: string
+          input?: Json
+          policy?: Json
+          result?: Json
+          risk?: Json
+          verification?: Json
+        }
+        Update: {
+          action?: string
+          actor?: string
+          agent?: string | null
+          authority?: Json
+          case_id?: string | null
+          created_at?: string
+          decision?: Json
+          evidence?: Json
+          id?: string
+          input?: Json
+          policy?: Json
+          result?: Json
+          risk?: Json
+          verification?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resolveai_audit_logs_case_id_fkey"
+            columns: ["case_id"]
+            referencedRelation: "resolveai_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resolveai_case_events: {
+        Row: {
+          case_id: string
+          created_at: string
+          duration_ms: number
+          error: string | null
+          evidence_count: number
+          id: string
+          label: string
+          result: Json
+          stage: string
+          status: string
+        }
+        Insert: {
+          case_id: string
+          created_at?: string
+          duration_ms?: number
+          error?: string | null
+          evidence_count?: number
+          id?: string
+          label: string
+          result?: Json
+          stage: string
+          status: string
+        }
+        Update: {
+          case_id?: string
+          created_at?: string
+          duration_ms?: number
+          error?: string | null
+          evidence_count?: number
+          id?: string
+          label?: string
+          result?: Json
+          stage?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resolveai_case_events_case_id_fkey"
+            columns: ["case_id"]
+            referencedRelation: "resolveai_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resolveai_cases: {
+        Row: {
+          action_history: Json
+          agent_notes: string | null
+          assigned_agent: string | null
+          authority_result: Json
+          case_id: string
+          circuit_breaker: Json
+          closed_at: string | null
+          contradiction_detected: boolean
+          contradictions: Json
+          conversation_id: string | null
+          created_at: string
+          customer_history: Json
+          customer_id: string
+          escalation_reasons: Json
+          escalation_score: number | null
+          evidence: Json
+          evidence_count: number
+          gates: Json
+          hypotheses: Json
+          id: string
+          intent: string | null
+          message_text: string | null
+          order_ids: Json
+          policy_result: Json
+          priority: string | null
+          recommended_action: Json
+          resolution_passport: Json
+          resolution_status: string | null
+          risk_result: Json
+          root_cause: string | null
+          root_cause_confidence: number | null
+          routing_confidence: number | null
+          routing_reason: string | null
+          sentiment: string | null
+          sentiment_score: number | null
+          sla_deadline: string | null
+          specialist: string | null
+          status: string
+          sub_intents: Json
+          ticket_ids: Json
+          transaction_ids: Json
+          updated_at: string
+          urgency: string | null
+          verification_result: Json
+        }
+        Insert: {
+          action_history?: Json
+          agent_notes?: string | null
+          assigned_agent?: string | null
+          authority_result?: Json
+          case_id: string
+          circuit_breaker?: Json
+          closed_at?: string | null
+          contradiction_detected?: boolean
+          contradictions?: Json
+          conversation_id?: string | null
+          created_at?: string
+          customer_history?: Json
+          customer_id: string
+          escalation_reasons?: Json
+          escalation_score?: number | null
+          evidence?: Json
+          evidence_count?: number
+          gates?: Json
+          hypotheses?: Json
+          id?: string
+          intent?: string | null
+          message_text?: string | null
+          order_ids?: Json
+          policy_result?: Json
+          priority?: string | null
+          recommended_action?: Json
+          resolution_passport?: Json
+          resolution_status?: string | null
+          risk_result?: Json
+          root_cause?: string | null
+          root_cause_confidence?: number | null
+          routing_confidence?: number | null
+          routing_reason?: string | null
+          sentiment?: string | null
+          sentiment_score?: number | null
+          sla_deadline?: string | null
+          specialist?: string | null
+          status?: string
+          sub_intents?: Json
+          ticket_ids?: Json
+          transaction_ids?: Json
+          updated_at?: string
+          urgency?: string | null
+          verification_result?: Json
+        }
+        Update: {
+          action_history?: Json
+          agent_notes?: string | null
+          assigned_agent?: string | null
+          authority_result?: Json
+          case_id?: string
+          circuit_breaker?: Json
+          closed_at?: string | null
+          contradiction_detected?: boolean
+          contradictions?: Json
+          conversation_id?: string | null
+          created_at?: string
+          customer_history?: Json
+          customer_id?: string
+          escalation_reasons?: Json
+          escalation_score?: number | null
+          evidence?: Json
+          evidence_count?: number
+          gates?: Json
+          hypotheses?: Json
+          id?: string
+          intent?: string | null
+          message_text?: string | null
+          order_ids?: Json
+          policy_result?: Json
+          priority?: string | null
+          recommended_action?: Json
+          resolution_passport?: Json
+          resolution_status?: string | null
+          risk_result?: Json
+          root_cause?: string | null
+          root_cause_confidence?: number | null
+          routing_confidence?: number | null
+          routing_reason?: string | null
+          sentiment?: string | null
+          sentiment_score?: number | null
+          sla_deadline?: string | null
+          specialist?: string | null
+          status?: string
+          sub_intents?: Json
+          ticket_ids?: Json
+          transaction_ids?: Json
+          updated_at?: string
+          urgency?: string | null
+          verification_result?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resolveai_cases_conversation_id_fkey"
+            columns: ["conversation_id"]
+            referencedRelation: "resolveai_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resolveai_cases_customer_id_fkey"
+            columns: ["customer_id"]
+            referencedRelation: "resolveai_customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resolveai_conversations: {
+        Row: {
+          created_at: string
+          customer_id: string
+          id: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          customer_id: string
+          id?: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string
+          id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resolveai_conversations_customer_id_fkey"
+            columns: ["customer_id"]
+            referencedRelation: "resolveai_customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resolveai_customers: {
+        Row: {
+          churn_risk: number
+          city: string | null
+          created_at: string
+          customer_code: string
+          email: string
+          id: string
+          lifetime_value: number
+          name: string
+          orders_count: number
+          phone: string | null
+          refunds_count: number
+          sentiment_history: Json
+          tier: string
+          user_id: string | null
+        }
+        Insert: {
+          churn_risk?: number
+          city?: string | null
+          created_at?: string
+          customer_code: string
+          email: string
+          id?: string
+          lifetime_value?: number
+          name: string
+          orders_count?: number
+          phone?: string | null
+          refunds_count?: number
+          sentiment_history?: Json
+          tier?: string
+          user_id?: string | null
+        }
+        Update: {
+          churn_risk?: number
+          city?: string | null
+          created_at?: string
+          customer_code?: string
+          email?: string
+          id?: string
+          lifetime_value?: number
+          name?: string
+          orders_count?: number
+          phone?: string | null
+          refunds_count?: number
+          sentiment_history?: Json
+          tier?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      resolveai_escalations: {
+        Row: {
+          case_id: string
+          created_at: string
+          id: string
+          passport: Json
+          priority: string
+          reasons: Json
+          recommended_queue: string
+          resolved_at: string | null
+          score: number
+          status: string
+        }
+        Insert: {
+          case_id: string
+          created_at?: string
+          id?: string
+          passport?: Json
+          priority: string
+          reasons?: Json
+          recommended_queue: string
+          resolved_at?: string | null
+          score: number
+          status?: string
+        }
+        Update: {
+          case_id?: string
+          created_at?: string
+          id?: string
+          passport?: Json
+          priority?: string
+          reasons?: Json
+          recommended_queue?: string
+          resolved_at?: string | null
+          score?: number
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resolveai_escalations_case_id_fkey"
+            columns: ["case_id"]
+            referencedRelation: "resolveai_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resolveai_failure_fingerprints: {
+        Row: {
+          affected_system: string
+          fingerprint_id: string
+          frequency: number
+          id: string
+          name: string
+          probable_root_cause: string
+          recommended_recovery: string | null
+          severity: string
+          symptoms: Json
+        }
+        Insert: {
+          affected_system: string
+          fingerprint_id: string
+          frequency?: number
+          id?: string
+          name: string
+          probable_root_cause: string
+          recommended_recovery?: string | null
+          severity: string
+          symptoms?: Json
+        }
+        Update: {
+          affected_system?: string
+          fingerprint_id?: string
+          frequency?: number
+          id?: string
+          name?: string
+          probable_root_cause?: string
+          recommended_recovery?: string | null
+          severity?: string
+          symptoms?: Json
+        }
+        Relationships: []
+      }
+      resolveai_incident_cases: {
+        Row: {
+          case_id: string
+          incident_id: string
+        }
+        Insert: {
+          case_id: string
+          incident_id: string
+        }
+        Update: {
+          case_id?: string
+          incident_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resolveai_incident_cases_case_id_fkey"
+            columns: ["case_id"]
+            referencedRelation: "resolveai_cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resolveai_incident_cases_incident_id_fkey"
+            columns: ["incident_id"]
+            referencedRelation: "resolveai_incidents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resolveai_incidents: {
+        Row: {
+          affected_case_count: number
+          fingerprint_id: string
+          first_detected_at: string
+          id: string
+          incident_id: string
+          name: string
+          recommended_response: string | null
+          severity: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          affected_case_count?: number
+          fingerprint_id: string
+          first_detected_at?: string
+          id?: string
+          incident_id: string
+          name: string
+          recommended_response?: string | null
+          severity: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          affected_case_count?: number
+          fingerprint_id?: string
+          first_detected_at?: string
+          id?: string
+          incident_id?: string
+          name?: string
+          recommended_response?: string | null
+          severity?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resolveai_incidents_fingerprint_id_fkey"
+            columns: ["fingerprint_id"]
+            referencedRelation: "resolveai_failure_fingerprints"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resolveai_knowledge_chunks: {
+        Row: {
+          chunk_index: number
+          content: string
+          content_search: unknown
+          document_id: string
+          id: string
+          token_count: number
+        }
+        Insert: {
+          chunk_index: number
+          content: string
+          content_search: unknown
+          document_id: string
+          id?: string
+          token_count?: number
+        }
+        Update: {
+          chunk_index?: number
+          content?: string
+          content_search?: unknown
+          document_id?: string
+          id?: string
+          token_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resolveai_knowledge_chunks_document_id_fkey"
+            columns: ["document_id"]
+            referencedRelation: "resolveai_knowledge_documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resolveai_knowledge_documents: {
+        Row: {
+          category: string
+          content: string
+          doc_id: string
+          id: string
+          source: string | null
+          title: string
+        }
+        Insert: {
+          category: string
+          content: string
+          doc_id: string
+          id?: string
+          source?: string | null
+          title: string
+        }
+        Update: {
+          category?: string
+          content?: string
+          doc_id?: string
+          id?: string
+          source?: string | null
+          title?: string
+        }
+        Relationships: []
+      }
+      resolveai_messages: {
+        Row: {
+          content: string
+          conversation_id: string
+          created_at: string
+          id: string
+          role: string
+        }
+        Insert: {
+          content: string
+          conversation_id: string
+          created_at?: string
+          id?: string
+          role: string
+        }
+        Update: {
+          content?: string
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resolveai_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            referencedRelation: "resolveai_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resolveai_order_items: {
+        Row: {
+          id: string
+          order_id: string
+          product_id: string
+          quantity: number
+          unit_price: number
+        }
+        Insert: {
+          id?: string
+          order_id: string
+          product_id: string
+          quantity?: number
+          unit_price: number
+        }
+        Update: {
+          id?: string
+          order_id?: string
+          product_id?: string
+          quantity?: number
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resolveai_order_items_order_id_fkey"
+            columns: ["order_id"]
+            referencedRelation: "resolveai_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resolveai_order_items_product_id_fkey"
+            columns: ["product_id"]
+            referencedRelation: "resolveai_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resolveai_orders: {
+        Row: {
+          amount: number
+          courier: string | null
+          created_at: string
+          customer_id: string
+          delivered_at: string | null
+          gps_evidence: Json
+          id: string
+          item_count: number
+          order_id: string
+          shipment_status: string | null
+          status: string
+          tracking_number: string | null
+        }
+        Insert: {
+          amount: number
+          courier?: string | null
+          created_at?: string
+          customer_id: string
+          delivered_at?: string | null
+          gps_evidence?: Json
+          id?: string
+          item_count?: number
+          order_id: string
+          shipment_status?: string | null
+          status: string
+          tracking_number?: string | null
+        }
+        Update: {
+          amount?: number
+          courier?: string | null
+          created_at?: string
+          customer_id?: string
+          delivered_at?: string | null
+          gps_evidence?: Json
+          id?: string
+          item_count?: number
+          order_id?: string
+          shipment_status?: string | null
+          status?: string
+          tracking_number?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resolveai_orders_customer_id_fkey"
+            columns: ["customer_id"]
+            referencedRelation: "resolveai_customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resolveai_payments: {
+        Row: {
+          amount: number
+          created_at: string
+          customer_id: string
+          gateway: string
+          id: string
+          method: string
+          order_id: string
+          refund_api_sim_fail: boolean
+          status: string
+          txn_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          customer_id: string
+          gateway?: string
+          id?: string
+          method?: string
+          order_id: string
+          refund_api_sim_fail?: boolean
+          status: string
+          txn_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          customer_id?: string
+          gateway?: string
+          id?: string
+          method?: string
+          order_id?: string
+          refund_api_sim_fail?: boolean
+          status?: string
+          txn_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resolveai_payments_customer_id_fkey"
+            columns: ["customer_id"]
+            referencedRelation: "resolveai_customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resolveai_payments_order_id_fkey"
+            columns: ["order_id"]
+            referencedRelation: "resolveai_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resolveai_policies: {
+        Row: {
+          allowed_actions: Json
+          authority_limits: Json
+          category: string
+          conditions: Json
+          description: string
+          effective_from: string
+          id: string
+          name: string
+          policy_id: string
+          restrictions: Json
+        }
+        Insert: {
+          allowed_actions?: Json
+          authority_limits?: Json
+          category: string
+          conditions?: Json
+          description: string
+          effective_from?: string
+          id?: string
+          name: string
+          policy_id: string
+          restrictions?: Json
+        }
+        Update: {
+          allowed_actions?: Json
+          authority_limits?: Json
+          category?: string
+          conditions?: Json
+          description?: string
+          effective_from?: string
+          id?: string
+          name?: string
+          policy_id?: string
+          restrictions?: Json
+        }
+        Relationships: []
+      }
+      resolveai_products: {
+        Row: {
+          category: string
+          description: string | null
+          id: string
+          name: string
+          price: number
+          sku: string
+        }
+        Insert: {
+          category: string
+          description?: string | null
+          id?: string
+          name: string
+          price: number
+          sku: string
+        }
+        Update: {
+          category?: string
+          description?: string | null
+          id?: string
+          name?: string
+          price?: number
+          sku?: string
+        }
+        Relationships: []
+      }
+      resolveai_refunds: {
+        Row: {
+          amount: number
+          case_id: string | null
+          created_at: string
+          customer_id: string
+          id: string
+          issued_at: string | null
+          payment_id: string
+          refund_id: string
+          status: string
+          verification: Json
+        }
+        Insert: {
+          amount: number
+          case_id?: string | null
+          created_at?: string
+          customer_id: string
+          id?: string
+          issued_at?: string | null
+          payment_id: string
+          refund_id: string
+          status: string
+          verification?: Json
+        }
+        Update: {
+          amount?: number
+          case_id?: string | null
+          created_at?: string
+          customer_id?: string
+          id?: string
+          issued_at?: string | null
+          payment_id?: string
+          refund_id?: string
+          status?: string
+          verification?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resolveai_refunds_case_id_fkey"
+            columns: ["case_id"]
+            referencedRelation: "resolveai_cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resolveai_refunds_customer_id_fkey"
+            columns: ["customer_id"]
+            referencedRelation: "resolveai_customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resolveai_refunds_payment_id_fkey"
+            columns: ["payment_id"]
+            referencedRelation: "resolveai_payments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resolveai_staff: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          role: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          role: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          role?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      resolveai_tickets: {
+        Row: {
+          category: string
+          created_at: string
+          customer_id: string
+          id: string
+          resolution: string | null
+          status: string
+          subject: string
+          ticket_id: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          customer_id: string
+          id?: string
+          resolution?: string | null
+          status?: string
+          subject: string
+          ticket_id: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          customer_id?: string
+          id?: string
+          resolution?: string | null
+          status?: string
+          subject?: string
+          ticket_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resolveai_tickets_customer_id_fkey"
+            columns: ["customer_id"]
+            referencedRelation: "resolveai_customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      resolveai_analytics_snapshot: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
+      resolveai_current_customer_id: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      resolveai_current_staff_role: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      resolveai_search_knowledge: {
+        Args: { max_results?: number; query: string }
+        Returns: {
+          category: string
+          chunk_id: string
+          chunk_index: number
+          content: string
+          doc_id: string
+          document_id: string
+          score: number
+          title: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never

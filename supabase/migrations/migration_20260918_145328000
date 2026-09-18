@@ -1,0 +1,3 @@
+alter table public.resolveai_staff enable row level security;
+create policy resolveai_staff_select_own on public.resolveai_staff for select using (auth.uid() = user_id);
+create policy resolveai_staff_all_staff on public.resolveai_staff for all using (public.resolveai_current_staff_role() is not null);

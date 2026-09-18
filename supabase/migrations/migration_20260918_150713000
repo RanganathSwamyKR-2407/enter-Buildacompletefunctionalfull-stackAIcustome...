@@ -1,0 +1,39 @@
+create or replace function public.resolveai_analytics_snapshot()
+returns jsonb
+language sql
+stable
+security definer
+set search_path = public
+as $$
+select jsonb_build_object(
+  'operational', jsonb_build_object(
+    'open_complaints', (select count(*) from public.resolveai_cases where status not in ('resolved','closed')),
+    'resolved_complaints', (select count(*) from public.resolveai_cases where status = 'resolved'),
+    'total_cases', (select count(*) from public.resolveai_cases),
+    'avg_resolution_minutes', coalesce((select round(avg(extract(epoch from (closed_at - created_at))/60))::int from public.resolveai_cases where closed_at is not null), 0),
+    'sla_compliance_pct', coalesce((select round(100.0 * count(*) filter (where closed_at <= sla_deadline) / nullif(count(*) filter (where closed_at is not null and sla_deadline is not null), 0))::int from public.resolveai_cases), 0),
+    'escalation_rate_pct', coalesce((select round(100.0 * count(*) filter (where status = 'escalated') / nullif(count(*), 0))::int from public.resolveai_cases), 0),
+    'automation_success_rate_pct', coalesce((select round(100.0 * count(*) filter (where status = 'succeeded') / nullif(count(*), 0))::int from public.resolveai_agent_actions), 0),
+    'verification_failure_rate_pct', coalesce((select round(100.0 * count(*) filter (where overall = 'failed') / nullif(count(*), 0))::int from public.resolveai_action_verifications), 0),
+    'avg_customer_effort', coalesce((select round(avg(cnt))::int from (select count(*) as cnt from public.resolveai_tickets group by customer_id) t), 0),
+    'escalated_count', (select count(*) from public.resolveai_cases where status = 'escalated'),
+    'automation_paused_count', (select count(*) from public.resolveai_cases where status = 'automation_paused')
+  ),
+  'complaints', jsonb_build_object(
+    'top_intents', (select coalesce(jsonb_agg(row_to_json(x)::jsonb order by x.cnt desc), '[]'::jsonb) from (select intent as intent, count(*) as cnt from public.resolveai_cases group by intent) x),
+    'recurring_fingerprints', (select coalesce(jsonb_agg(row_to_json(x)::jsonb order by x.frequency desc), '[]'::jsonb) from (select fingerprint_id, name, frequency, severity from public.resolveai_failure_fingerprints order by frequency desc limit 5) x),
+    'incident_clusters', (select coalesce(jsonb_agg(row_to_json(x)::jsonb order by x.affected_case_count desc), '[]'::jsonb) from (select incident_id, name, status, affected_case_count, severity from public.resolveai_incidents order by affected_case_count desc) x),
+    'top_root_causes', (select coalesce(jsonb_agg(row_to_json(x)::jsonb order by x.cnt desc), '[]'::jsonb) from (select root_cause, count(*) as cnt from public.resolveai_cases where root_cause is not null group by root_cause order by cnt desc limit 5) x),
+    'duplicate_payment_cases', (select count(*) from public.resolveai_cases where evidence @> '[{"type":"duplicate_payment"}]'::jsonb)
+  ),
+  'customers', jsonb_build_object(
+    'total_customers', (select count(*) from public.resolveai_customers),
+    'repeat_contact_customers', (select count(distinct customer_id) from (select customer_id from public.resolveai_tickets group by customer_id having count(*) >= 2) t),
+    'negative_sentiment_customers', (select count(distinct customer_id) from public.resolveai_cases where sentiment = 'negative'),
+    'avg_churn_risk', (select round(avg(churn_risk))::int from public.resolveai_customers),
+    'high_churn_risk_customers', (select count(*) from public.resolveai_customers where churn_risk >= 50),
+    'high_value_unresolved', (select coalesce(jsonb_agg(row_to_json(x)::jsonb), '[]'::jsonb) from (select c.customer_code, c.name, c.lifetime_value, c.tier, count(k.id) as open_cases from public.resolveai_customers c left join public.resolveai_cases k on k.customer_id = c.id and k.status not in ('resolved','closed') where c.lifetime_value >= 30000 group by c.id having count(k.id) > 0 order by c.lifetime_value desc) x)
+  ),
+  'recent_events', (select coalesce(jsonb_agg(row_to_json(x)::jsonb order by x.created_at desc), '[]'::jsonb) from (select event_type, payload, created_at from public.resolveai_analytics_events order by created_at desc limit 12) x)
+);
+$$;

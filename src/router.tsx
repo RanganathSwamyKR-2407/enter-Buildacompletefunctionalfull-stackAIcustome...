@@ -1,16 +1,66 @@
-import Index from "./pages/Index";
-import NotFound from "./pages/NotFound";
+import { Navigate } from "react-router-dom";
+import { AppShell } from "@/components/app-shell";
+import { useAuth } from "@/context/AuthContext";
+import Login from "@/pages/Login";
+import Chat from "@/pages/Chat";
+import Queue from "@/pages/Queue";
+import Investigation from "@/pages/Investigation";
+import Customers, { CustomerDetail } from "@/pages/Customers";
+import Orders from "@/pages/Orders";
+import Payments from "@/pages/Payments";
+import Policies from "@/pages/Policies";
+import Incidents from "@/pages/Incidents";
+import Analytics from "@/pages/Analytics";
+import Escalations from "@/pages/Escalations";
+import Audit from "@/pages/Audit";
+import SelfCheck from "@/pages/SelfCheck";
+import NotFound from "@/pages/NotFound";
+
+function RequireAuth({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center text-sm text-muted-foreground">
+        Restoring session…
+      </div>
+    );
+  }
+  if (!user) return <Navigate to="/login" replace />;
+  return <>{children}</>;
+}
 
 export const routers = [
   {
-    path: "/",
-    name: "home",
-    element: <Index />,
+    path: "/login",
+    element: <Login />,
   },
-  /* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */
+  {
+    path: "/",
+    element: (
+      <RequireAuth>
+        <AppShell />
+      </RequireAuth>
+    ),
+    children: [
+      { index: true, element: <Navigate to="/queue" replace /> },
+      { path: "chat", element: <Chat /> },
+      { path: "queue", element: <Queue /> },
+      { path: "investigations", element: <Navigate to="/queue" replace /> },
+      { path: "investigations/:caseId", element: <Investigation /> },
+      { path: "customers", element: <Customers /> },
+      { path: "customers/:id", element: <CustomerDetail /> },
+      { path: "orders", element: <Orders /> },
+      { path: "payments", element: <Payments /> },
+      { path: "policies", element: <Policies /> },
+      { path: "incidents", element: <Incidents /> },
+      { path: "analytics", element: <Analytics /> },
+      { path: "escalations", element: <Escalations /> },
+      { path: "audit", element: <Audit /> },
+      { path: "selfcheck", element: <SelfCheck /> },
+    ],
+  },
   {
     path: "*",
-    name: "404",
     element: <NotFound />,
   },
 ];
