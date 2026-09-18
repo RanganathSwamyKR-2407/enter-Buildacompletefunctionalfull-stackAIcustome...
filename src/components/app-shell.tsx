@@ -61,7 +61,8 @@ const NAV = [
     items: [
       { to: "/escalations", label: "Escalations", icon: LifeBuoy },
       { to: "/audit", label: "Audit Trail", icon: ScrollText },
-      { to: "/selfcheck", label: "System Health", icon: FlaskConical },
+      { to: "/selfcheck", label: "Demo Self-Check", icon: FlaskConical },
+      { to: "/system-health", label: "System Health", icon: ShieldCheck },
     ],
   },
 ];

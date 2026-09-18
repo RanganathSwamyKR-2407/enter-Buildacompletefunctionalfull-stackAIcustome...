@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, FlaskConical, CheckCircle2, XCircle } from "lucide-react";
 import { humanValue } from "@/lib/format";
-import { SystemHealth, DemoMode } from "@/components/health-demo";
+import { DemoMode } from "@/components/health-demo";
 
 export default function SelfCheck() {
   const [result, setResult] = useState<SelfCheckResult | null>(null);
@@ -39,8 +39,7 @@ export default function SelfCheck() {
         }
       />
 
-      <div className="mb-4 grid gap-4 lg:grid-cols-2">
-        <SystemHealth />
+      <div className="mb-4">
         <DemoMode />
       </div>
 

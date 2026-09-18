@@ -15,6 +15,7 @@ import Analytics from "@/pages/Analytics";
 import Escalations from "@/pages/Escalations";
 import Audit from "@/pages/Audit";
 import SelfCheck from "@/pages/SelfCheck";
+import SystemHealthPage from "@/pages/SystemHealth";
 import Profile from "@/pages/Profile";
 import NotFound from "@/pages/NotFound";
 
@@ -70,6 +71,7 @@ export const routers = [
       { path: "escalations", element: <Escalations /> },
       { path: "audit", element: <Audit /> },
       { path: "selfcheck", element: <SelfCheck /> },
+      { path: "system-health", element: <SystemHealthPage /> },
       { path: "profile", element: <Profile /> },
     ],
   },
