@@ -42,6 +42,7 @@ import { ApprovalPanel, VerificationCenter, BreakerMonitor, SimulationPanel } fr
 import { RAGQuality, KnowledgeCandidates } from "@/components/knowledge-panels";
 import { InvestigationReplay } from "@/components/replay";
 import { computeCustomerEffort } from "@/lib/engine";
+import { normalizeVerification } from "@/lib/verification";
 
 export default function Investigation() {
   const { caseId } = useParams<{ caseId: string }>();
@@ -247,7 +248,7 @@ export default function Investigation() {
             <RAGQuality caseRow={cs} sources={ragSources} />
           </div>
           <div className="grid gap-4 lg:grid-cols-2">
-            <VerificationPanel verification={cs.verification_result} />
+            <VerificationPanel verification={normalizeVerification(cs.verification_result)} />
             <VerificationCenter caseRow={cs} />
           </div>
           <BreakerMonitor caseRow={cs} />

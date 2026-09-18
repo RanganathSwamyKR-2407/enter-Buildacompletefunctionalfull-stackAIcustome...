@@ -14,19 +14,23 @@ export function EffortScore({ tickets, cases, escalations, refunds }: {
   escalations: Escalation[];
   refunds: Refund[];
 }) {
-  const resolved = cases.filter((c) => c.status === "resolved" || c.closed_at);
+  const ticketList = tickets ?? [];
+  const caseList = cases ?? [];
+  const escList = escalations ?? [];
+  const refundList = refunds ?? [];
+  const resolved = caseList.filter((c) => c.status === "resolved" || c.closed_at);
   const resolutionHours = resolved.length
     ? resolved.reduce((n, c) => n + (c.closed_at ? (new Date(c.closed_at).getTime() - new Date(c.created_at).getTime()) / 3600000 : 0), 0) / resolved.length
     : 0;
-  const infoRequests = cases.filter((c) => /status|update|when|how long|still|pending/i.test(c.message_text ?? "")).length;
-  const failedActions = cases.reduce((n, c) => n + (c.action_history ?? []).filter((a) => a.status === "failed").length, 0);
+  const infoRequests = caseList.filter((c) => /status|update|when|how long|still|pending/i.test(c.message_text ?? "")).length;
+  const failedActions = caseList.reduce((n, c) => n + (c.action_history ?? []).filter((a) => a.status === "failed").length, 0);
   const result: EffortResult = computeCustomerEffort({
-    contacts: tickets.length + cases.length,
-    transfers: escalations.length,
+    contacts: ticketList.length + caseList.length,
+    transfers: escList.length,
     infoRequests,
     resolutionHours,
     failedActions,
-    escalations: escalations.length,
+    escalations: escList.length,
   });
   const tone = result.score >= 3.6 ? "danger" : result.score >= 2.6 ? "warning" : "success";
   return (
@@ -36,7 +40,7 @@ export function EffortScore({ tickets, cases, escalations, refunds }: {
     >
       <div className="mb-1.5 flex items-center gap-2">
         <Badge className={tone === "danger" ? "bg-danger-soft text-danger" : tone === "warning" ? "bg-warning-soft text-warning" : "bg-success-soft text-success"}>{result.label}</Badge>
-        <span className="text-[11px] text-muted-foreground">Computed from {tickets.length + cases.length} contacts · {refunds.length} refunds</span>
+        <span className="text-[11px] text-muted-foreground">Computed from {ticketList.length + caseList.length} contacts · {refundList.length} refunds</span>
       </div>
       <div className="space-y-1 text-xs">
         {result.factors.map((f) => (
@@ -78,7 +82,7 @@ export function CustomerJourney({
   escalations: Escalation[];
 }) {
   const items: JourneyItem[] = [
-    ...orders.map((o) => ({
+    ...(orders ?? []).map((o) => ({
       id: o.id,
       kind: "order" as const,
       label: `Order ${o.order_id} — ${o.status}`,
@@ -86,7 +90,7 @@ export function CustomerJourney({
       status: o.status,
       icon: <Package className="h-3.5 w-3.5 text-brand" />,
     })),
-    ...payments.map((p) => ({
+    ...(payments ?? []).map((p) => ({
       id: p.id,
       kind: "payment" as const,
       label: `Payment ${p.txn_id} — ${inr(p.amount)} (${p.status})`,
@@ -94,7 +98,7 @@ export function CustomerJourney({
       status: p.status,
       icon: <CreditCard className="h-3.5 w-3.5 text-info" />,
     })),
-    ...refunds.map((r) => ({
+    ...(refunds ?? []).map((r) => ({
       id: r.id,
       kind: "refund" as const,
       label: `Refund ${r.refund_id} — ${inr(r.amount)} (${r.status})`,
@@ -102,7 +106,7 @@ export function CustomerJourney({
       status: r.status,
       icon: <CheckCircle2 className="h-3.5 w-3.5 text-success" />,
     })),
-    ...tickets.map((t) => ({
+    ...(tickets ?? []).map((t) => ({
       id: t.id,
       kind: "ticket" as const,
       label: `Support contact ${t.ticket_id} — ${t.subject}`,
@@ -110,7 +114,7 @@ export function CustomerJourney({
       status: t.status,
       icon: <TicketIcon className="h-3.5 w-3.5 text-warning" />,
     })),
-    ...cases.map((c) => ({
+    ...(cases ?? []).map((c) => ({
       id: c.id,
       kind: "case" as const,
       label: `Complaint ${c.case_id} — ${c.intent}`,
@@ -118,7 +122,7 @@ export function CustomerJourney({
       status: c.status,
       icon: <FileText className="h-3.5 w-3.5 text-danger" />,
     })),
-    ...escalations.map((e) => ({
+    ...(escalations ?? []).map((e) => ({
       id: e.id,
       kind: "escalation" as const,
       label: `Escalation ${e.case_id.slice(0, 8)} — score ${e.score}`,

@@ -16,7 +16,7 @@ export function EscalationPanel({ escalation, caseRow }: { escalation: Escalatio
       </CardHeader>
       <CardContent className="space-y-2 p-4">
         <div className="flex flex-wrap gap-2">
-          {escalation.reasons.map((r, i) => (
+          {(escalation.reasons ?? []).map((r, i) => (
             <span key={i} className="rounded bg-card px-2 py-1 text-xs text-muted-foreground">
               {r}
             </span>

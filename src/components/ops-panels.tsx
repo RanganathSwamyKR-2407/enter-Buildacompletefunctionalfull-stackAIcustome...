@@ -203,7 +203,7 @@ export function SLAIntelligence({ caseRow }: { caseRow: CaseRow }) {
 // ---------------------------------------------------------------------
 // 15. Human Handoff Summary
 // ---------------------------------------------------------------------
-export function HandoffSummary({ caseRow, events }: { caseRow: CaseRow; events: CaseEvent[] }) {
+export function HandoffSummary({ caseRow, events }: { caseRow: CaseRow; events?: CaseEvent[] }) {
   const known = (caseRow.evidence ?? []).filter((e) => e.known).map((e) => e.label);
   const unknown = (caseRow.evidence ?? []).filter((e) => !e.known).map((e) => e.label);
   const attempted = (caseRow.action_history ?? []).map((a) => `attempt ${a.attempt ?? "?"}: ${a.status ?? a.detail}`).join("; ") || "None";
@@ -225,7 +225,7 @@ export function HandoffSummary({ caseRow, events }: { caseRow: CaseRow; events: 
       <Handoff k="WHAT WAS ATTEMPTED" v={attempted} />
       <Handoff k="WHY AUTOMATION STOPPED" v={automationStopped} />
       <Handoff k="RECOMMENDED NEXT STEP" v={(caseRow.recommended_action as Record<string, unknown>)?.action ? JSON.stringify(caseRow.recommended_action) : "Review evidence and proceed manually."} />
-      <div className="mt-2 text-[11px] text-muted-foreground">{events.length} investigation events recorded · {fmtDate(caseRow.updated_at)}</div>
+      <div className="mt-2 text-[11px] text-muted-foreground">{(events ?? []).length} investigation events recorded · {fmtDate(caseRow.updated_at)}</div>
     </SectionCard>
   );
 }

@@ -19,6 +19,7 @@ import { useAuth, signOut } from "@/context/AuthContext";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { classNames } from "@/lib/format";
+import { ErrorBoundary } from "@/components/error-boundary";
 
 const NAV = [
   {
@@ -155,7 +156,9 @@ export function AppShell() {
           </div>
         </header>
         <main className="min-h-0 flex-1 overflow-y-auto p-5">
-          <Outlet />
+          <ErrorBoundary>
+            <Outlet />
+          </ErrorBoundary>
         </main>
       </div>
     </div>

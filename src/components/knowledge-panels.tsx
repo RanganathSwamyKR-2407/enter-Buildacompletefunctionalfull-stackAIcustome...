@@ -13,8 +13,9 @@ import type { CaseRow, KnowledgeCandidate, Customer, Incident } from "@/lib/type
 // ---------------------------------------------------------------------
 // 10. Knowledge / RAG Quality Panel
 // ---------------------------------------------------------------------
-export function RAGQuality({ caseRow, sources }: { caseRow: CaseRow; sources: { doc_id: string; title: string; score: number; source?: string; policyId?: string }[] }) {
-  const grounded = sources.length > 0;
+export function RAGQuality({ caseRow, sources }: { caseRow: CaseRow; sources?: { doc_id: string; title: string; score: number; source?: string; policyId?: string }[] }) {
+  const items = sources ?? [];
+  const grounded = items.length > 0;
   const unsupported = !grounded && Boolean((caseRow.policy_result as Record<string, unknown>)?.allowed);
   return (
     <SectionCard
@@ -24,7 +25,7 @@ export function RAGQuality({ caseRow, sources }: { caseRow: CaseRow; sources: { 
     >
       {grounded ? (
         <div className="space-y-1.5">
-          {sources.map((s, i) => (
+          {items.map((s, i) => (
             <div key={i} className="rounded border px-2.5 py-1.5 text-[13px]">
               <div className="flex items-center justify-between">
                 <span className="flex items-center gap-1.5 font-medium"><FileText className="h-3.5 w-3.5 text-muted-foreground" />{s.title}</span>
@@ -135,14 +136,16 @@ export function TrendsPanel({
   fingerprints,
   cases,
 }: {
-  fingerprints: { fingerprint_id: string; name: string; frequency: number; severity: string; affected_system: string }[];
+  fingerprints?: { fingerprint_id: string; name: string; frequency: number; severity: string; affected_system: string }[];
   cases: CaseRow[];
 }) {
+  const fps = fingerprints ?? [];
+  const caseList = cases ?? [];
   const now = Date.now();
-  const recent = cases.filter((c) => now - new Date(c.created_at).getTime() < 7 * 86400000);
-  const older = cases.filter((c) => now - new Date(c.created_at).getTime() >= 7 * 86400000);
+  const recent = caseList.filter((c) => now - new Date(c.created_at).getTime() < 7 * 86400000);
+  const older = caseList.filter((c) => now - new Date(c.created_at).getTime() >= 7 * 86400000);
 
-  const rows = fingerprints.map((fp) => {
+  const rows = fps.map((fp) => {
     const matcher = (c: CaseRow) =>
       (c.root_cause ?? "").toLowerCase().includes(fp.name.split(" ")[0].toLowerCase()) ||
       (c.evidence ?? []).some((e) => String(e.label).toLowerCase().includes(fp.name.split(" ")[0].toLowerCase())) ||
@@ -201,14 +204,15 @@ export function ImpactPanel({
 }: {
   incident: Incident;
   cases: CaseRow[];
-  customers: Map<string, Customer>;
+  customers?: Map<string, Customer>;
 }) {
+  const custMap = customers ?? new Map<string, Customer>();
   const qc = useQueryClient();
   const [notified, setNotified] = useState(false);
   const linked = (incident.linked_case_uuids ?? []).filter((id) => cases.some((c) => c.id === id));
   const affected = linked.map((cid) => {
-    const c = cases.find((x) => x.id === cid);
-    return { c, cust: c ? customers.get(c.customer_id) : undefined };
+    const c = (cases ?? []).find((x) => x.id === cid);
+    return { c, cust: c ? custMap.get(c.customer_id) : undefined };
   }).filter((x) => x.c && x.cust);
 
   const prepareNotification = async () => {

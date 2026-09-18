@@ -21,6 +21,7 @@ import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
 import { classNames, confidenceLabel, timeAgo } from "@/lib/format";
 import { GateBadge } from "@/components/badges";
+import { normalizeVerification, asArray } from "@/lib/verification";
 
 const SOURCE_ICON: Record<string, React.ReactNode> = {
   customers: <User className="h-3.5 w-3.5" />,
@@ -57,8 +58,9 @@ export function SectionCard({
 }
 
 export function EvidencePanel({ evidence }: { evidence: EvidenceItem[] }) {
-  const facts = evidence.filter((e) => e.known);
-  const inferences = evidence.filter((e) => !e.known);
+  const items = asArray<EvidenceItem>(evidence);
+  const facts = items.filter((e) => e.known);
+  const inferences = items.filter((e) => !e.known);
   return (
     <SectionCard
       title="Evidence"
@@ -90,7 +92,7 @@ export function EvidencePanel({ evidence }: { evidence: EvidenceItem[] }) {
             <span className="text-[10px] font-medium uppercase tracking-wide text-warning">INFERRED</span>
           </div>
         ))}
-        {evidence.length === 0 && <div className="text-xs text-muted-foreground">No evidence collected yet.</div>}
+        {items.length === 0 && <div className="text-xs text-muted-foreground">No evidence collected yet.</div>}
       </div>
     </SectionCard>
   );
@@ -159,17 +161,22 @@ export function GateStatus({ gates }: { gates: Record<string, GateResult> }) {
 }
 
 export function VerificationPanel({ verification }: { verification: VerificationResult | null }) {
-  if (!verification) {
+  const norm = normalizeVerification(verification);
+  if (!norm) {
     return (
-      <SectionCard title="Verification" icon={<CheckCircle2 className="h-4 w-4 text-info" />}>
+      <SectionCard title="Action Verification" icon={<Loader2 className="h-4 w-4 text-info" />}>
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Awaiting verification…
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          {verification == null
+            ? "Awaiting verification…"
+            : "No verification events available yet."}
         </div>
       </SectionCard>
     );
   }
-  const tone = verification.overall === "passed" ? "success" : verification.overall === "failed" ? "danger" : "warning";
-  const Icon = verification.overall === "passed" ? CheckCircle2 : verification.overall === "failed" ? XCircle : AlertTriangle;
+  const { overall, checks, detail } = norm;
+  const tone = overall === "passed" ? "success" : overall === "failed" ? "danger" : "warning";
+  const Icon = overall === "passed" ? CheckCircle2 : overall === "failed" ? XCircle : AlertTriangle;
   return (
     <SectionCard
       title="Action Verification"
@@ -183,12 +190,12 @@ export function VerificationPanel({ verification }: { verification: Verification
             tone === "warning" && "bg-warning-soft text-warning",
           )}
         >
-          {verification.overall}
+          {overall}
         </span>
       }
     >
       <div className="space-y-1.5">
-        {verification.checks.map((c) => (
+        {checks.map((c) => (
           <div key={c.name} className="flex items-center justify-between rounded-md border bg-muted/30 px-2.5 py-1.5 text-[13px]">
             <span className="font-medium">{c.name}</span>
             <span className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -197,17 +204,21 @@ export function VerificationPanel({ verification }: { verification: Verification
             </span>
           </div>
         ))}
-        <div className="pt-1 text-xs text-muted-foreground">{verification.detail}</div>
+        {checks.length === 0 && (
+          <div className="text-xs text-muted-foreground">No verification checks recorded.</div>
+        )}
+        {detail && <div className="pt-1 text-xs text-muted-foreground">{detail}</div>}
       </div>
     </SectionCard>
   );
 }
 
 export function RAGSources({ sources }: { sources: { doc_id: string; title: string; score: number; section?: string }[] }) {
+  const items = asArray<{ doc_id: string; title: string; score: number; section?: string }>(sources);
   return (
     <SectionCard title="Retrieved Knowledge (RAG)" icon={<Search className="h-4 w-4 text-info" />}>
       <div className="space-y-1.5">
-        {sources.map((s, i) => (
+        {items.map((s, i) => (
           <div key={i} className="rounded-md border px-2.5 py-1.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5 text-[13px] font-medium">
@@ -222,7 +233,7 @@ export function RAGSources({ sources }: { sources: { doc_id: string; title: stri
             </div>
           </div>
         ))}
-        {sources.length === 0 && <div className="text-xs text-muted-foreground">No knowledge documents matched.</div>}
+        {items.length === 0 && <div className="text-xs text-muted-foreground">No knowledge documents matched.</div>}
       </div>
     </SectionCard>
   );

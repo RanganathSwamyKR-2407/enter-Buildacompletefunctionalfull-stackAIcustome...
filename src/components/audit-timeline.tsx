@@ -4,14 +4,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { fmtDate } from "@/lib/format";
 import { classNames } from "@/lib/format";
 
-export function AuditTimeline({ logs, limit = 40 }: { logs: AuditLog[]; limit?: number }) {
-  const items = logs.slice(0, limit);
+export function AuditTimeline({ logs, limit = 40 }: { logs?: AuditLog[]; limit?: number }) {
+  const items = (logs ?? []).slice(0, limit);
   return (
     <Card>
       <CardHeader className="flex-row items-center gap-2 space-y-0 py-3">
         <ScrollText className="h-4 w-4 text-brand" />
         <CardTitle className="text-sm font-semibold">Audit Trail</CardTitle>
-        <span className="ml-auto text-[11px] text-muted-foreground">{logs.length} events</span>
+        <span className="ml-auto text-[11px] text-muted-foreground">{items.length} events</span>
       </CardHeader>
       <CardContent className="p-4">
         <div className="relative">

@@ -42,10 +42,10 @@ const STAGE_LABEL: Record<string, string> = {
 // 16. Investigation Replay — reconstructs the real investigation from
 // the stored case_events. Never generates fake history.
 // ---------------------------------------------------------------------
-export function InvestigationReplay({ events }: { events: CaseEvent[] }) {
+export function InvestigationReplay({ events }: { events?: CaseEvent[] }) {
   const ordered = useMemo(() => {
     const byStage = new Map<string, CaseEvent>();
-    for (const ev of events) if (!byStage.has(ev.stage)) byStage.set(ev.stage, ev);
+    for (const ev of events ?? []) if (!byStage.has(ev.stage)) byStage.set(ev.stage, ev);
     return STAGE_SEQ.filter((s) => byStage.has(s)).map((s) => ({ stage: s, ev: byStage.get(s)! }));
   }, [events]);
 

@@ -188,9 +188,9 @@ export function VerificationCenter({ caseRow }: { caseRow: CaseRow }) {
                   )}
                   <span className="ml-auto text-[11px] text-muted-foreground">{fmtDate(a.created_at)}</span>
                 </div>
-                {v && v.checks.length > 0 && (
+                {v && (v.checks ?? []).length > 0 && (
                   <div className="mt-1 grid gap-x-4 gap-y-0.5 text-xs text-muted-foreground sm:grid-cols-2">
-                    {v.checks.map((c, i) => (
+                    {(v.checks ?? []).map((c, i) => (
                       <div key={i} className="flex items-center gap-1">
                         {c.pass ? <CheckCircle2 className="h-3 w-3 text-success" /> : <XCircle className="h-3 w-3 text-danger" />}
                         <span>{c.name}: {String(c.actual ?? "—")}</span>
@@ -279,7 +279,8 @@ function Stat({ label, value }: { label: string; value: number }) {
 // ---------------------------------------------------------------------
 // 3. What-If Simulation Mode (never writes; runs the real gate engine)
 // ---------------------------------------------------------------------
-export function SimulationPanel({ customerTier, evidenceSources }: { customerTier: string; evidenceSources: string[] }) {
+export function SimulationPanel({ customerTier, evidenceSources }: { customerTier: string; evidenceSources?: string[] }) {
+  const sources = evidenceSources ?? [];
   const [sim, setSim] = useState({
     amount: 7500,
     tier: customerTier,
@@ -296,7 +297,7 @@ export function SimulationPanel({ customerTier, evidenceSources }: { customerTie
     const gateInputs = {
       evidence: Array.from({ length: Math.min(8, sim.evidenceCount) }, (_, i) => ({
         id: `sim-${i}`,
-        source: evidenceSources[i % Math.max(1, evidenceSources.length)] ?? "simulated",
+        source: sources[i % Math.max(1, sources.length)] ?? "simulated",
         type: "simulated",
         label: "Simulated evidence",
         value: i,

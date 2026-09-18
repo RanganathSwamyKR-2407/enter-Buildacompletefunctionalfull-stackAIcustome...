@@ -26,8 +26,9 @@ export function InvestigationTimeline({
   events: CaseEvent[];
   running: boolean;
 }) {
+  const evs = events ?? [];
   const byStage = new Map<string, CaseEvent>();
-  for (const ev of events) {
+  for (const ev of evs) {
     byStage.set(ev.stage, ev);
   }
 
