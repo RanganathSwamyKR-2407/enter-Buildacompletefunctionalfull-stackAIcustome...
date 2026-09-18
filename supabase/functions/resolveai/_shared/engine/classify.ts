@@ -80,8 +80,19 @@ function detectSentiment(message: string): {
   sentiment: Understanding["sentiment"];
   sentimentScore: number;
 } {
-  const neg = countMatches(message, NEGATIVE_WORDS);
+  let neg = countMatches(message, NEGATIVE_WORDS);
   const pos = countMatches(message, POSITIVE_WORDS);
+  // Strong complaint phrases count as extra negative signals.
+  const phraseHits = [
+    /never received/i,
+    /not received/i,
+    /never got/i,
+    /didn'?t receive/i,
+    /keeps failing/i,
+    /refund.*not|not.*refund/i,
+    /still (pending|failing|nothing)/i,
+  ].reduce((n, re) => (re.test(message) ? n + 1 : n), 0);
+  neg += phraseHits;
   const score = Math.min(1, Math.max(0, 0.55 + pos * 0.15 - neg * 0.12));
   return {
     sentiment: score >= 0.6 ? "positive" : score >= 0.4 ? "neutral" : "negative",
@@ -113,7 +124,7 @@ const ROUTING_REASON: Record<string, string> = {
 export function classifyMessage(
   message: string,
   customerRepeatContacts = 0,
-): Omit<Understanding, "specialist"> {
+): Omit<Understanding, "specialist"> & { intentScore: number } {
   const intent = detectIntent(message);
   const subIntents = detectSubIntents(message);
   const senti = detectSentiment(message);
@@ -127,6 +138,7 @@ export function classifyMessage(
 
   return {
     intent: intent.intent,
+    intentScore: intent.score,
     subIntents,
     urgency,
     sentiment: senti.sentiment,
@@ -148,15 +160,21 @@ export function routeTicket(input: RouterInput): Understanding {
   const det = classifyMessage(input.message, input.customerRepeatContacts);
   const llm = input.llmUnderstanding;
 
-  const intent = llm?.intent && ["billing", "order", "technical", "account"].includes(llm.intent)
-    ? llm.intent
-    : det.intent;
-  const subIntents = llm?.subIntents?.length
+  // The deterministic classifier is the source of truth when its keyword
+  // signal is strong (>= 2 hits). The LLM only decides when the message is
+  // genuinely ambiguous (0 hits) or weakly signalled (1 hit) with high
+  // LLM confidence. This prevents LLM drift from misrouting clear cases.
+  const validLlm = llm?.intent && ["billing", "order", "technical", "account"].includes(llm.intent);
+  const llmCanDecide = det.intentScore === 0 ||
+    (det.intentScore === 1 && (llm?.confidence ?? 0) >= 0.75);
+
+  const intent = validLlm && llmCanDecide ? llm.intent : det.intent;
+  const subIntents = validLlm && llmCanDecide && llm?.subIntents?.length
     ? llm.subIntents.slice(0, 4)
     : det.subIntents;
-  const urgency = llm?.urgency ?? det.urgency;
-  const sentiment = llm?.sentiment ?? det.sentiment;
-  const confidence = llm?.confidence != null
+  const urgency = (validLlm && llmCanDecide && llm?.urgency) ?? det.urgency;
+  const sentiment = (validLlm && llmCanDecide && llm?.sentiment) ?? det.sentiment;
+  const confidence = llm?.confidence != null && llmCanDecide
     ? Math.max(0.5, Math.min(0.99, llm.confidence))
     : det.confidence;
 
@@ -169,11 +187,11 @@ export function routeTicket(input: RouterInput): Understanding {
     subIntents,
     urgency,
     sentiment,
-    sentimentScore: llm?.sentimentScore ?? det.sentimentScore,
-    priority: llm?.priority ?? computePriority(urgency, sentiment),
+    sentimentScore: (validLlm && llmCanDecide && llm?.sentimentScore) ?? det.sentimentScore,
+    priority: (validLlm && llmCanDecide && llm?.priority) ?? computePriority(urgency, sentiment),
     confidence,
     specialist: specialistByIntent[intent] ?? "order",
-    routingReason: llm?.routingReason ?? ROUTING_REASON[intent] ?? "Specialist match",
+    routingReason: (validLlm && llmCanDecide && llm?.routingReason) ?? ROUTING_REASON[intent] ?? "Specialist match",
   };
 }
 

@@ -67,6 +67,7 @@ async function handleChat(token: string | null, body: Record<string, unknown>): 
     staffRole: caller.staffRole,
     actor: caller.actor,
     fast: body.fast === true,
+    skipLlm: body.skipLlm === true,
   });
 
   return jsonResponse({
@@ -86,7 +87,11 @@ async function handleChat(token: string | null, body: Record<string, unknown>): 
 async function handleActions(token: string | null, body: Record<string, unknown>): Promise<Response> {
   const caller = await resolveCaller(token);
   if (!caller.staffRole) {
-    return jsonResponse({ error: "forbidden", detail: "Staff role required" }, 403);
+    return jsonResponse({
+      error: "forbidden",
+      detail: "Staff role required",
+      debug: { userId: caller.userId, staffRole: caller.staffRole, customerId: caller.customerId, actor: caller.actor },
+    }, 403);
   }
 
   const action = String(body.action ?? "");
@@ -422,6 +427,7 @@ async function handleSelfcheck(): Promise<Response> {
       staffRole: "manager",
       actor: "selfcheck",
       fast: true,
+      skipLlm: true,
     });
     const { data: refund } = await db.from("resolveai_refunds").select("refund_id, status, amount, verification").eq("case_id", res.caseUuid).maybeSingle();
     const { data: payment } = await db.from("resolveai_payments").select("status").eq("txn_id", "TXN-P10002").maybeSingle();
@@ -448,6 +454,7 @@ async function handleSelfcheck(): Promise<Response> {
       staffRole: "manager",
       actor: "selfcheck",
       fast: true,
+      skipLlm: true,
     });
     const { data: esc } = await db.from("resolveai_escalations").select("score, passport").eq("case_id", res.caseUuid).maybeSingle();
     results.push({
@@ -470,6 +477,7 @@ async function handleSelfcheck(): Promise<Response> {
       staffRole: "manager",
       actor: "selfcheck",
       fast: true,
+      skipLlm: true,
     });
     const { data: actions } = await db.from("resolveai_agent_actions").select("status, action").eq("case_id", res.caseUuid).order("created_at", { ascending: true });
     const failedCount = (actions ?? []).filter((a) => (a as { status: string }).status === "failed").length;

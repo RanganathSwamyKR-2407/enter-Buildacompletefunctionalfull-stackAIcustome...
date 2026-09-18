@@ -1,0 +1,1 @@
+update public.resolveai_payments set status = 'succeeded' where txn_id = 'TXN-P10002';

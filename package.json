@@ -10,7 +10,8 @@
     "check": "pnpm lint && pnpm exec tsc --noEmit",
     "lint": "eslint .",
     "preview": "vite preview",
-    "pInstall": "pnpm install"
+    "pInstall": "pnpm install",
+    "test": "vitest run"
   },
   "dependencies": {
     "@enter-pro/analytics-sdk": "^0.0.10",

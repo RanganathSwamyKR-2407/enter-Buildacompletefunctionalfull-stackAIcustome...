@@ -1,151 +1,198 @@
-# Welcome to your Enter project
+# ResolveAI — Autonomous Customer Support & Resolution Platform
 
-[![Built with enter.pro](https://img.shields.io/badge/Build%20with-Enter.pro-FC5776?style=for-the-badge&labelColor=1F1F1F)](https://enter.pro)
+ResolveAI is a full-stack autonomous customer-support platform. It is **not** a chatbot:
+every customer message is routed through a real investigation pipeline that gathers
+evidence from the customer, order, payment and ticket databases, retrieves company
+policy and knowledge, forms root-cause hypotheses, evaluates a deterministic
+**Four-Gate Controller** (Evidence · Policy · Authority · Risk), and only then either
+executes a verified autonomous action or escalates the case to a human with a complete
+**Resolution Passport**.
 
-*Automatically synced with your [enter.pro](https://enter.pro) workspace* 
-
----
-
-## Overview
-
-This repository is automatically linked to your app on [enter.pro](https://enter.pro).  
-Every change you make in Enter will be reflected here — and any updates you push to this repo will sync back seamlessly.  
-
-Enter.pro helps you **build, edit, and deploy full-stack web apps by prompting**.  
-Just describe what you want — Enter turns ideas into production-ready code.
-
----
-
-## Project URLs
-
-**Live app:** https://<project-id>-latest.preview.enter.pro  
-**Edit & build in Enter:** https://enter.pro/project/<project-id>
-
+```
+Customer
+  → Intent + Context           (LLM understanding + deterministic fusion)
+  → Ticket Router              (Billing / Order / Technical / Account specialists)
+  → Multi-Source Investigation (customers · orders · payments · tickets · knowledge · policy)
+  → Root-Cause Analysis        (deterministic duplicate/contradiction checks + LLM hypotheses)
+  → Four-Gate Controller       (deterministic)
+  → Autonomous Action          (gated tool → circuit breaker → independent verification)
+  → Resolve  OR  Escalate      (Resolution Passport → human queue)
+  → Audit · Analytics · Incident detection
+```
 
 ---
 
-## Continue building
+## Architecture
 
-Keep developing your app directly in [Enter.pro](https://enter.pro/project/<project-id>).  
-Prompt new features, refine the UI, or connect integrations — all changes are versioned and synced automatically to GitHub.
+| Layer | Technology |
+|-------|-----------|
+| Frontend | React 19, Vite 7, TypeScript, Tailwind CSS (design tokens), shadcn/ui, TanStack Query, Recharts, lucide-react |
+| Backend | **Enter Cloud** backend functions (Deno/TypeScript) — a single `resolveai` function exposing `chat`, `actions`, `escalate`, `analytics`, `incidents`, `bootstrap`, `selfcheck` routes |
+| Database | Managed PostgreSQL (Enter Cloud). 20+ relational tables with foreign keys, RLS, and realtime publication |
+| Real-time | Enter Cloud Realtime (WebSocket Postgres changes) streams investigation events into the Glass Box Console |
+| AI | Enter AI gateway · **DeepSeek V4 Flash** (OpenAI Chat Completions protocol). LLM *proposes* understanding / hypotheses / reply text. The deterministic backend *controls* all execution. Every LLM call has a deterministic fallback. |
+| RAG | PostgreSQL full-text retrieval (`websearch_to_tsquery` + `ts_rank_cd`) over seeded knowledge chunks with source scores shown in the console. Policy decisions always read real policy rows — the LLM never invents policy. |
 
----
+> The platform cannot run Python/FastAPI or Docker containers, so the original spec
+> was adapted: the FastAPI endpoint map maps 1:1 to backend-function routes, and the
+> managed Enter Cloud PostgreSQL replaces local Postgres. No `.env` secret is ever
+> exposed to the browser; the LLM token and service keys live in the backend
+> environment.
 
-## Local development
+## Features
 
-Prefer to work locally? You can clone this repo and start developing right away:
+- **Customer Chat** — customer context sidebar (profile, tier, previous interactions,
+  open cases) + real backend processing of every message.
+- **Complaint Queue** — filterable case table (intent, priority, sentiment, status,
+  escalated, SLA risk, search).
+- **Live Investigations / Glass Box Console** — real-time investigation pipeline with
+  per-step status, evidence count, duration, findings; evidence/hypothesis/policy/gate/
+  verification panels; RAG sources with retrieval scores; contradiction & circuit-breaker
+  alerts; audit timeline.
+- **Case Twin** — persistent case object updated as the investigation progresses
+  (context, evidence, hypotheses, root cause, gates, actions, verification, passport).
+- **Intelligent Ticket Router + Multi-Agent architecture** — supervisor orchestrator and
+  Billing / Order / Technical / Account specialist agents with structured plans.
+- **Four-Gate Controller** — deterministic Evidence / Policy / Authority / Risk gates
+  (`Tier-1 ≤ ₹1,000`, `Tier-2 ≤ ₹5,000`, `Manager > ₹5,000`).
+- **Autonomous Action Engine** — `issue_refund`, `update_ticket`, `send_message` mutate
+  real state and are independently verified.
+- **Circuit Breaker** — automation pauses after 3 consecutive action failures.
+- **Contradiction Detection** — delivery/GPS contradictions block auto-resolution.
+- **Escalation + Resolution Passport** — score, reasons, recommended queue, full context.
+- **Incident Detection** — failure fingerprints crossing a threshold create incidents.
+- **Operational Analytics** — server-computed KPIs from live database records.
+- **Audit Trail** — every important operation is logged.
+- **Auth & RBAC** — email/password with seeded Customer / Tier-1 / Tier-2 / Manager /
+  Admin accounts; RLS on every table; role checks in backend functions.
+
+## Demo login credentials
+
+All accounts use password `ResolveAI@123`. If a demo account is missing, the login
+page auto-provisions it once via the `bootstrap` route.
+
+| Role | Email |
+|------|-------|
+| Customer | `customer@resolveai.demo` |
+| Tier-1 Support Agent | `tier1@resolveai.demo` |
+| Tier-2 Support Agent | `tier2@resolveai.demo` |
+| Manager | `manager@resolveai.demo` |
+| Administrator | `admin@resolveai.demo` |
+
+## Running the application
+
+The app is fully hosted on Enter Cloud — the database, backend functions, auth and
+frontend are already deployed. Open the live preview and sign in.
+
+Local development:
 
 ```bash
-# Step 1: Clone your project repository
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate into the project folder
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install all dependencies
-pnpm install
-
-# Step 4: Start the local development server
-pnpm dev
+pnpm install        # install dependencies
+pnpm run dev        # start the Vite dev server (frontend talks to the deployed backend)
+pnpm run check      # eslint + tsc
+pnpm run test       # Vitest unit tests for the deterministic engine
+pnpm run build      # production build
 ```
 
-Push your commits — Enter.pro will automatically detect and sync your latest changes.
+Rebuild & redeploy the backend function after editing `supabase/functions/resolveai/`:
 
----
-
-## i18n
-
-This template ships a minimal browser-side i18n baseline built on:
-
-- `i18next`
-- `react-i18next`
-- `i18next-http-backend`
-- `i18next-browser-languagedetector`
-
-### Source-of-truth files
-
-The template only owns three pieces of i18n data:
-
-- `i18n.config.json` — language manifest (`fallbackLng`, `languages[].{code,label,detect,dir}`)
-- `public/locales/{code}.json` — flat dotted-key translations, one file per language
-- `src/i18n/config.ts` + `src/i18n/util.ts` — runtime entry and pure helpers
-- `src/components/language-switcher.tsx` — neutral-themed UI sample
-
-### Runtime behavior
-
-- reads the manifest from `i18n.config.json`
-- loads translations from `public/locales/{code}.json` via `i18next-http-backend`
-- detects language from cookie, browser, then html tag; caches in the `i18next` cookie
-- normalizes unsupported languages to `fallbackLng` (no invalid values stored in cookies)
-- syncs `<html lang>` and `<html dir>` on init and on `languageChanged`
-- treats keys as flat strings: both `keySeparator` and `nsSeparator` are disabled
-
-### Using translations in components
-
-Import directly from `react-i18next`. No project-specific hook or cast is needed.
-
-```tsx
-import { useTranslation } from "react-i18next";
-
-const Title = () => {
-  const { t } = useTranslation();
-  return <h1>{t("home.hero.title")}</h1>;
-};
+```bash
+node scripts/bundle-resolveai.mjs   # inline shared modules into index.ts
+# then deploy the "resolveai" function through the platform
 ```
 
-For language switching, the `i18n` instance also comes from `useTranslation()`:
+## Environment variables
 
-```tsx
-const { i18n } = useTranslation();
-void i18n.changeLanguage("zh-CN");
-```
+Client secrets are never stored in the frontend. Backend secrets (database URL,
+service key, LLM API token `AI_API_TOKEN_*`, project attribution header) are managed
+by Enter Cloud and read with `Deno.env.get(...)` inside backend functions. `.env.example`
+holds only publishable analytics configuration used by `src/analytics.ts`.
 
-`languageOptions`, `normalizeLanguage`, `getLanguageDirection`, and `fallbackLng` can be imported from `@/i18n/config` (re-exports from `util.ts`).
+## Database
 
-### Adding a language
+All tables use the stable `resolveai_` prefix and live under `supabase/migrations/`:
 
-1. Add an entry under `languages` in `i18n.config.json` with `code`, `label`, `detect`, `dir`.
-2. Create `public/locales/{code}.json` with the same key set as `public/locales/{fallbackLng}.json`.
-3. Translate values, preserving any `{{variables}}` and `<tag>...</tag>` structures.
+- `resolveai_staff`, `resolveai_customers`
+- `resolveai_conversations`, `resolveai_messages`
+- `resolveai_cases` (the Case Twin) + `resolveai_case_events` (realtime)
+- `resolveai_products`, `resolveai_orders`, `resolveai_order_items`
+- `resolveai_payments`, `resolveai_refunds`, `resolveai_tickets`
+- `resolveai_knowledge_documents`, `resolveai_knowledge_chunks` (tsvector GIN index)
+- `resolveai_policies`, `resolveai_agents`
+- `resolveai_agent_actions`, `resolveai_action_verifications`
+- `resolveai_escalations`, `resolveai_failure_fingerprints`
+- `resolveai_incidents`, `resolveai_incident_cases`
+- `resolveai_analytics_events`, `resolveai_audit_logs`
 
-### Adding a translation key
+RLS is enabled on every table (staff full access; customers read their own data).
+`resolveai_case_events`, `resolveai_cases`, `resolveai_escalations` and
+`resolveai_messages` are published to realtime.
 
-1. Add the key to `public/locales/{fallbackLng}.json` first.
-2. Add the same key to every other locale file with its translated value.
-3. Use it via `t("group.key")` in components.
+Seed data (migration `0002_seed.sql`): 20 customers, 50 orders, 60 payments,
+23 tickets, 40 cases, 10 products, 10 knowledge documents (chunked), 10 policies,
+4 agents, 8 refunds, 5 failure fingerprints, 2 incidents, 3 escalations.
 
-### Backend handoff (temporary in-repo files)
+## API (backend function routes)
 
-The following files are **temporary copies kept in the repo only until backend integration is complete**. The backend will eventually own validation, statistics, completion-rate dashboards, scan-for-new-strings, and auto-translate. After that integration lands, these files (and the corresponding `package.json` scripts) will be removed:
+The single deployed backend function is invoked as
+`POST /functions/v1/resolveai` (or via `supabase.functions.invoke("resolveai", …))`
+with a `route` field:
 
-- `scripts/check-i18n.mjs`, `scripts/scan-i18n.mjs`, `scripts/i18n-utils.mjs`, `scripts/i18n-source-usage.mjs`
-- `i18n.scan.json`
-- `reports/i18n/`
-- `docs/i18n-agent-spec.md`, `docs/i18n-contract.md`
-- `package.json` scripts: `i18n:check`, `i18n:scan`, and the `check` aggregate
+| Route | Method | Description |
+|-------|--------|-------------|
+| `chat` | POST | `{ customer_id?, message, fast?, skipLlm? }` → runs the full lifecycle, returns case + reply |
+| `actions` | POST | staff-only gated action tools: `issue_refund`, `update_ticket`, `send_message` |
+| `escalate` | POST | staff-only manual escalation with Resolution Passport |
+| `analytics` | POST/GET | server-computed KPIs from live DB records |
+| `incidents` | POST/GET | incidents + failure fingerprints + linked cases |
+| `bootstrap` | POST | idempotent demo-account provisioning |
+| `selfcheck` | POST | integration harness for the three demo tracks (A/B/C assertions) |
 
-Until removed, you can still run `pnpm i18n:check` and `pnpm i18n:scan` locally; the canonical computation is the backend's responsibility.
+## AI / RAG / multi-agent architecture
 
----
+- **Safety:** the LLM returns structured JSON proposals (intent, hypotheses, reply).
+  Sensitive actions execute only through deterministic, gated tools after the
+  Four-Gate Controller passes. Failed or unverified actions are never reported as
+  successful to the customer.
+- **RAG:** customer message → full-text retrieval over `resolveai_knowledge_chunks`
+  (scores via `ts_rank_cd`) → sources attached to the case → reply generation grounded
+  in retrieved policy/knowledge. The Glass Box Console shows document, section, score.
+- **Agents:** the supervisor builds the investigation plan, routes to a specialist,
+  and fuses structured evidence. Each specialist returns structured output
+  (`resolveai_agents.plan_steps` / `allowed_tools`).
 
-## Tech stack
+## Security model
 
-This project uses:
+- RLS on all tables; staff rows gate client reads.
+- Backend functions resolve the caller from the JWT (`resolveai_staff`/customers) and
+  enforce role checks server-side — never on the client.
+- Authority limits enforced deterministically by the Authority gate.
+- Audit logging on routing, actions, gates, escalations and verification.
+- No secrets in the frontend; no raw SQL inside backend functions (client query API + RPC only).
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+## Demo scenarios
 
----
+Open **Demo Self-Check** (`/selfcheck`, Manager or Admin) and press **Run integration test**,
+or drive them live from the **Customer Chat** page:
 
-## Deployment
+1. **Duplicate payment (autonomous resolution)** — as customer, send
+   *"I was charged twice for my order. The order is still pending and I already contacted support twice."*
+   Watch: intent detection → Billing Agent → duplicate detected → policy POL-REF-01 →
+   gates PASS → refund ₹2,499 issued → verification PASS → case RESOLVED.
+2. **Contradiction** — as customer, send
+   *"The courier says delivered but I never received my package."*
+   Watch: courier + GPS evidence → **CONTRADICTION DETECTED** → auto-resolution blocked →
+   escalated with a Resolution Passport (visible under **Escalations**).
+3. **Circuit breaker** — as customer, send
+   *"My refund is not coming through. I was charged and the refund keeps failing."*
+   Watch: refund attempt fails → retry → fails → retry → fails → **AUTOMATION PAUSED** →
+   escalated with full context.
 
-To deploy, open your Enter.pro project and click "Publish"
+## Remaining limitations
 
-Your app will automatically build and go live at your production URL.
-
----
-
-✨ Keep prompting, keep building — Enter.pro handles the rest.
+- RAG uses PostgreSQL full-text retrieval (deterministic, scored) instead of vector
+  embeddings — no embedding endpoint is exposed by the platform's AI gateway.
+- The refund "API failure" in scenario C is a seeded deterministic simulation flag
+  (`resolveai_payments.refund_api_sim_fail`) standing in for an external gateway outage.
+- The backend is a single deployed function with routed endpoints (a platform
+  deployment constraint) rather than one function per endpoint.

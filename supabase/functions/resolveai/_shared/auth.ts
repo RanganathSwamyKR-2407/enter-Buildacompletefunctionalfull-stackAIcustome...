@@ -3,6 +3,7 @@
 // (Deno only)
 // =====================================================================
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
+import { db } from "./db.ts";
 
 const AUTH_SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const AUTH_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
@@ -23,12 +24,13 @@ export function bearerToken(req: Request): string | null {
 
 /**
  * Resolve the calling user + their ResolveAI role/customer identity.
- * Uses the user's own JWT via the anon client (service role never exposed).
+ * The user is authenticated by their own JWT (never trusted from input),
+ * and their identity rows are read server-side with the service-role
+ * client keyed to that verified user id. RLS stays on for all client
+ * access; this is purely server-side authorization context.
  */
 export async function resolveCaller(
   token: string | null,
-  staffTable = "resolveai_staff",
-  customerTable = "resolveai_customers",
 ): Promise<CallerInfo> {
   if (!token) {
     return { userId: null, staffRole: null, customerId: null, actor: "anonymous" };
@@ -39,41 +41,28 @@ export async function resolveCaller(
     });
     const { data, error } = await anon.auth.getUser(token);
     if (error || !data.user) {
+      console.error("resolveCaller: getUser failed", JSON.stringify(error));
       return { userId: null, staffRole: null, customerId: null, actor: "unauthenticated" };
     }
     const userId = data.user.id;
 
     const [{ data: staff }, { data: customer }] = await Promise.all([
-      fetchJson(staffTable, userId),
-      fetchJson(customerTable, userId),
+      db.from("resolveai_staff").select("role, name").eq("user_id", userId).maybeSingle(),
+      db.from("resolveai_customers").select("id, name").eq("user_id", userId).maybeSingle(),
     ]);
-
-    const staffRow = staff && staff.length > 0 ? staff[0] as Record<string, unknown> : null;
-    const customerRow = customer && customer.length > 0 ? customer[0] as Record<string, unknown> : null;
 
     return {
       userId,
-      staffRole: staffRow ? String(staffRow.role) : null,
-      customerId: customerRow ? String(customerRow.id) : null,
-      actor: staffRow ? String(staffRow.name) : customerRow ? String(customerRow.name) : "customer",
+      staffRole: staff ? String((staff as { role: string }).role) : null,
+      customerId: customer ? String((customer as { id: string }).id) : null,
+      actor: staff
+        ? String((staff as { name: string }).name)
+        : customer
+          ? String((customer as { name: string }).name)
+          : "customer",
     };
   } catch (err) {
     console.error("resolveCaller failed", err);
     return { userId: null, staffRole: null, customerId: null, actor: "unknown" };
   }
-}
-
-async function fetchJson(table: string, userId: string): Promise<unknown[] | null> {
-  const res = await fetch(
-    `${AUTH_SUPABASE_URL}/rest/v1/${table}?user_id=eq.${userId}&select=*`,
-    {
-      headers: {
-        apikey: AUTH_ANON_KEY,
-        Authorization: `Bearer ${AUTH_ANON_KEY}`,
-        "Content-Type": "application/json",
-      },
-    },
-  );
-  if (!res.ok) return null;
-  return res.json();
 }

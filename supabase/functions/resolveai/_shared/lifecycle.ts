@@ -40,6 +40,7 @@ export interface LifecycleRequest {
   staffRole?: string | null;
   actor?: string;
   fast?: boolean; // true disables the demo pacing delays (self-check)
+  skipLlm?: boolean; // true disables LLM calls (self-check runs deterministic-only)
 }
 
 export interface LifecycleResult {
@@ -146,7 +147,7 @@ export async function runLifecycle(
     `${(tickets ?? []).length} prior tickets`,
     `${(orders ?? []).length} orders`,
   ].join(", ");
-  const llmU = await llmUnderstand(req.message, customerContext);
+  const llmU = req.skipLlm ? null : await llmUnderstand(req.message, customerContext);
   const routed = routeTicket({
     message: req.message,
     customerRepeatContacts: repeatContacts,
@@ -388,7 +389,7 @@ export async function runLifecycle(
   let rootConfidence: number | null = null;
   let hypotheses: Hypothesis[] = [];
   const evidenceSummary = evidence.map((e) => `- [${e.source}] ${e.label}`).join("\n");
-  const llmHyp = await llmHypothesize(req.message, evidenceSummary);
+  const llmHyp = req.skipLlm ? null : await llmHypothesize(req.message, evidenceSummary);
   if (llmHyp) {
     hypotheses = llmHyp.hypotheses.map((h, i) => ({
       ...h,
@@ -397,14 +398,16 @@ export async function runLifecycle(
     }));
   }
 
-  if (hasDuplicates && syncIssue) {
-    rootCause = "Payment/order synchronization failure — duplicate debit created while order stayed pending";
+  if (hasDuplicates && routed.intent === "billing") {
+    rootCause = syncIssue
+      ? "Payment/order synchronization failure — duplicate debit created while order stayed pending"
+      : "Duplicate debit — two successful transactions recorded for the same order";
     rootConfidence = 0.92;
     hypotheses.unshift({
-      title: "Payment-order synchronization failure",
-      reasoning: "2 successful transactions share one order id that never left 'pending'; matches gateway-timeout duplicate pattern.",
+      title: "Duplicate payment (gateway timeout pattern)",
+      reasoning: "2 successful transactions share one order id; matches the gateway-timeout duplicate-debit pattern (DOC-PAY-01).",
       confidence: 0.92,
-      evidenceIds: ["EV-DUP-1", "EV-SYNC-1"],
+      evidenceIds: ["EV-DUP-1"],
     });
   } else if (contradictions.length > 0) {
     rootCause = contradictions[0].label;
@@ -730,10 +733,18 @@ export async function runLifecycle(
     `Root cause: ${rootCause ?? "not determined"}`,
     status === "resolved" ? "Action: refund issued and verified." : "",
     status === "escalated" ? "Action: escalated to human support team." : "",
-    verification?.overall === "passed" ? `Verified: ${outcomeRefundLine(verification)}` : "",
+    verification?.overall === "passed"
+      ? `VERIFIED FACT: a refund of ₹${duplicateAmount ?? ""} (INR ${duplicateAmount ?? ""}) was issued and verified. State this exact amount. Never invent or convert amounts.`
+      : "",
   ].filter(Boolean).join("\n");
-  const llmReply = await llmRespond(String(cust.name), respContext);
-  response = llmReply || fallbackResponse(status === "resolved", {
+  const llmReply = req.skipLlm ? null : await llmRespond(String(cust.name), respContext);
+
+  // Correctness guard: a verified refund must be quoted with the exact amount.
+  const exactRefundReply =
+    status === "resolved" && duplicateAmount != null && llmReply && llmReply.includes(String(duplicateAmount))
+      ? llmReply
+      : null;
+  response = exactRefundReply || fallbackResponse(status === "resolved", {
     customerName: String(cust.name),
     intent: routed.intent,
     rootCause,
@@ -792,12 +803,6 @@ export async function runLifecycle(
   };
 }
 
-function outcomeRefundLine(verification: { overall: string; checks: unknown[] } | null): string {
-  const checks = (verification?.checks ?? []) as { name: string; actual: unknown }[];
-  const refund = checks.find((c) => c.name === "refund_record_exists");
-  const amount = checks.find((c) => c.name === "refund_amount_matches");
-  return `refund ${refund?.actual ? "exists" : "unknown"}, amount ${String(amount?.actual ?? "unknown")}`;
-}
 
 async function lastEscalationReasons(db: SupabaseClient, caseUuid: string): Promise<unknown[]> {
   const { data } = await db.from("resolveai_escalations").select("reasons").eq("case_id", caseUuid).order("created_at", { ascending: false }).limit(1);

@@ -1,4 +1,4 @@
-import { User, Package, CreditCard, Ticket, RefreshCw, TrendingDown } from "lucide-react";
+import { User, Package, CreditCard, Ticket as TicketIcon, RefreshCw, TrendingDown } from "lucide-react";
 import type { Customer, Order, Payment, Refund, Ticket, CaseRow } from "@/lib/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -105,7 +105,7 @@ export function Customer360({
         <Card>
           <CardHeader className="py-3">
             <CardTitle className="flex items-center gap-2 text-sm">
-              <Ticket className="h-4 w-4 text-brand" /> Support history ({tickets.length})
+              <TicketIcon className="h-4 w-4 text-brand" /> Support history ({tickets.length})
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-1.5 p-4">
