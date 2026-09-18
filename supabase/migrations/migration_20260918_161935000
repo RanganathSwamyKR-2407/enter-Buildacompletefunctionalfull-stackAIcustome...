@@ -1,0 +1,37 @@
+create or replace function public.resolveai_handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.raw_user_meta_data ? 'role' then
+    insert into public.resolveai_staff (user_id, name, role)
+    values (new.id, coalesce(new.raw_user_meta_data->>'name', 'Support Agent'), new.raw_user_meta_data->>'role')
+    on conflict (user_id) do nothing;
+    return new;
+  end if;
+  if new.raw_user_meta_data ? 'customer_code' then
+    update public.resolveai_customers set user_id = new.id
+    where customer_code = new.raw_user_meta_data->>'customer_code';
+    return new;
+  end if;
+  -- Least-privilege default: any other new user (e.g. Google OAuth) becomes a Customer.
+  -- If a customer with this email already exists without an owner, link it instead of duplicating.
+  update public.resolveai_customers set user_id = new.id
+  where email = new.email and user_id is null;
+  if found then
+    return new;
+  end if;
+  insert into public.resolveai_customers (user_id, customer_code, name, email, tier)
+  values (
+    new.id,
+    'CUST-'||lpad((1000 + (select count(*) from public.resolveai_customers))::text, 4, '0'),
+    coalesce(new.raw_user_meta_data->>'name', split_part(new.email, '@', 1)),
+    new.email,
+    'standard'
+  )
+  on conflict (user_id) do nothing;
+  return new;
+end;
+$$;

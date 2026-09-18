@@ -631,6 +631,77 @@ export function fallbackResponse(
   return `Hi ${customerName}, we're looking into your ${intent} issue. Our team will update you shortly.`;
 }
 
+// --- _shared/engine/effort.ts ---
+// =====================================================================
+// ResolveAI engine — Customer Effort Score (pure TS)
+// Computed from actual case records; never hardcoded.
+// Higher score = more effort the customer had to expend.
+// =====================================================================
+export interface EffortInputs {
+  contacts: number; // support contacts (tickets + cases)
+  transfers: number; // escalations / queue transfers
+  infoRequests: number; // inferred from messages asking for status/update
+  resolutionHours: number; // time between first contact and resolution
+  failedActions: number; // failed automated actions on the case
+  escalations: number; // escalation count
+}
+
+export interface EffortResult {
+  score: number; // 1 (low effort) .. 5 (high effort)
+  label: "LOW" | "MODERATE" | "HIGH" | "VERY HIGH";
+  factors: { name: string; weight: number; detail: string }[];
+}
+
+export function computeCustomerEffort(inputs: EffortInputs): EffortResult {
+  const factors: EffortResult["factors"] = [];
+
+  // Contacts: baseline 1 contact is expected; more = more effort.
+  const contactFactor = Math.max(0, inputs.contacts - 1);
+  factors.push({
+    name: "Repeat contacts",
+    weight: Math.min(1.0, contactFactor * 0.4),
+    detail: `${inputs.contacts} contact(s)`,
+  });
+
+  const transferFactor = inputs.transfers + inputs.escalations;
+  factors.push({
+    name: "Transfers / escalations",
+    weight: Math.min(1.0, transferFactor * 0.5),
+    detail: `${transferFactor} transfer(s)/escalation(s)`,
+  });
+
+  const hoursFactor = Math.max(0, inputs.resolutionHours - 2);
+  factors.push({
+    name: "Resolution time",
+    weight: Math.min(1.0, hoursFactor / 48),
+    detail: `${Math.round(inputs.resolutionHours)}h to resolve`,
+  });
+
+  const failedFactor = inputs.failedActions;
+  factors.push({
+    name: "Failed actions",
+    weight: Math.min(1.0, failedFactor * 0.6),
+    detail: `${failedFactor} failed automated action(s)`,
+  });
+
+  const infoFactor = inputs.infoRequests;
+  factors.push({
+    name: "Status follow-ups",
+    weight: Math.min(0.6, infoFactor * 0.2),
+    detail: `${infoFactor} status inquiry(ies)`,
+  });
+
+  const totalWeight = factors.reduce((n, f) => n + f.weight, 0);
+  // Score 1..5
+  const score = Math.round((1 + Math.min(4, totalWeight)) * 10) / 10;
+
+  return {
+    score,
+    label: score <= 1.6 ? "LOW" : score <= 2.6 ? "MODERATE" : score <= 3.6 ? "HIGH" : "VERY HIGH",
+    factors,
+  };
+}
+
 // --- _shared/engine/escalation.ts ---
 // =====================================================================
 // ResolveAI engine — escalation scoring
@@ -1132,6 +1203,8 @@ export function detectContradictions(
             },
           ],
           decision: "AUTO-RESOLUTION BLOCKED",
+          impact: "HIGH — customer denies receipt while courier proof points to a different location; refunding or re-sending could be fraudulent or duplicate.",
+          requiredAction: "Human investigation of courier proof-of-delivery vs customer address before any resolution.",
         });
       } else if (!delivery.gps || delivery.gps.matched == null) {
         found.push({
@@ -1144,6 +1217,8 @@ export function detectContradictions(
             { source: "GPS", value: "proof-of-delivery coordinates not recorded" },
           ],
           decision: "AUTO-RESOLUTION BLOCKED",
+          impact: "MEDIUM — delivery record exists but cannot be verified geospatially.",
+          requiredAction: "Request courier photographs/proof or re-verify with the courier partner.",
         });
       }
     }
@@ -1212,6 +1287,66 @@ export function evaluateCircuitBreaker(
   };
 }
 
+// --- _shared/engine/trends.ts ---
+// =====================================================================
+// ResolveAI engine — recurring / emerging issue detection (pure TS)
+// Compares current frequency of a fingerprint against a baseline window
+// using real case records.
+// =====================================================================
+export interface TrendInputs {
+  currentCount: number; // matching cases in the recent window
+  baselineCount: number; // matching cases in the older (baseline) window
+  baselineWindowCount: number; // total cases in baseline window
+  currentWindowCount: number; // total cases in current window
+  affectedCustomers: string[];
+  relatedSystems: string[];
+}
+
+export interface TrendResult {
+  currentFrequency: number;
+  baselineFrequency: number;
+  changePct: number; // (current - baseline) / baseline
+  ratio: number;
+  direction: "stable" | "declining" | "emerging";
+  potentialIncident: boolean;
+  severity: "low" | "medium" | "high";
+  reason: string;
+}
+
+export function computeTrend(inputs: TrendInputs): TrendResult {
+  const currentRate = inputs.currentWindowCount > 0 ? inputs.currentCount / inputs.currentWindowCount : 0;
+  const baselineRate = inputs.baselineWindowCount > 0 ? inputs.baselineCount / inputs.baselineWindowCount : 0;
+  const changePct = baselineRate > 0 ? Math.round(((currentRate - baselineRate) / baselineRate) * 100) : currentRate > 0 ? 100 : 0;
+  const ratio = baselineRate > 0 ? currentRate / baselineRate : currentRate > 0 ? 1 : 0;
+
+  let direction: TrendResult["direction"] = "stable";
+  if (changePct >= 40 && currentCountIsSignificant(inputs)) direction = "emerging";
+  else if (changePct <= -25) direction = "declining";
+
+  const potentialIncident = direction === "emerging" && currentCountIsSignificant(inputs);
+  const severity: TrendResult["severity"] = potentialIncident ? "high" : changePct >= 40 ? "medium" : "low";
+
+  return {
+    currentFrequency: inputs.currentCount,
+    baselineFrequency: inputs.baselineCount,
+    changePct,
+    ratio: Math.round(ratio * 100) / 100,
+    direction,
+    potentialIncident,
+    severity,
+    reason:
+      direction === "emerging"
+        ? `Complaint rate up ${changePct}% vs baseline — potentially emerging issue across ${inputs.affectedCustomers.length} customer(s).`
+        : direction === "declining"
+          ? `Complaint rate down ${Math.abs(changePct)}% vs baseline.`
+          : "Complaint rate is stable vs baseline.",
+  };
+}
+
+function currentCountIsSignificant(inputs: TrendInputs): boolean {
+  return inputs.currentCount >= 3;
+}
+
 // --- _shared/engine/types.ts ---
 // =====================================================================
 // ResolveAI engine — shared types (pure TS, no external imports)
@@ -1263,6 +1398,8 @@ export interface Contradiction {
   label: string;
   evidence: { source: string; value: string }[];
   decision: "AUTO-RESOLUTION BLOCKED";
+  impact?: string;
+  requiredAction?: string;
 }
 
 export interface EscalationResult {
@@ -1370,6 +1507,91 @@ export const SPECIALIST_BY_INTENT: Record<string, string> = {
   technical: "technical",
   account: "account",
 };
+
+// --- _shared/engine/uncertainty.ts ---
+// =====================================================================
+// ResolveAI engine — uncertainty / low-confidence assessment (pure TS)
+// Never presents uncertain hypotheses as confirmed facts.
+// =====================================================================
+export interface UncertaintyInputs {
+  aiConfidence: number | null; // 0..1 routing/root-cause confidence
+  evidenceCount: number;
+  expectedEvidence: number; // ideal evidence items for this intent
+  contradictions: number;
+  policyCertain: boolean;
+  actionRisk: "low" | "medium" | "high";
+}
+
+export interface UncertaintyResult {
+  level: "LOW" | "MODERATE" | "HIGH";
+  confidence: number | null;
+  evidenceCompleteness: number; // 0..1
+  evidenceConsistency: "consistent" | "conflicting" | "missing";
+  policyCertainty: "certain" | "uncertain";
+  actionRisk: "low" | "medium" | "high";
+  missingEvidence: string[];
+  blockAutoResolution: boolean;
+  recommendHumanReview: boolean;
+  reason: string;
+}
+
+export function assessUncertainty(inputs: UncertaintyInputs): UncertaintyResult {
+  const evidenceCompleteness = Math.min(1, inputs.evidenceCount / Math.max(1, inputs.expectedEvidence));
+  const consistency: UncertaintyResult["evidenceConsistency"] =
+    inputs.contradictions > 0 ? "conflicting" : inputs.evidenceCount === 0 ? "missing" : "consistent";
+
+  let level: UncertaintyResult["level"] = "LOW";
+  const reasons: string[] = [];
+
+  if (inputs.aiConfidence != null && inputs.aiConfidence < 0.6) {
+    level = "HIGH";
+    reasons.push(`AI confidence ${Math.round(inputs.aiConfidence * 100)}% is below the safe threshold (60%).`);
+  } else if (inputs.aiConfidence != null && inputs.aiConfidence < 0.7) {
+    level = "MODERATE";
+    reasons.push(`AI confidence ${Math.round(inputs.aiConfidence * 100)}% is moderate.`);
+  }
+
+  if (evidenceCompleteness < 0.5) {
+    if (level !== "HIGH") level = "MODERATE";
+    reasons.push(`Evidence incomplete (${inputs.evidenceCount} of ${inputs.expectedEvidence} expected items).`);
+  }
+
+  if (consistency === "conflicting") {
+    level = "HIGH";
+    reasons.push(`${inputs.contradictions} contradictory finding(s) detected.`);
+  }
+
+  if (!inputs.policyCertain) {
+    if (level !== "HIGH") level = "MODERATE";
+    reasons.push("Policy applicability is uncertain.");
+  }
+
+  if (inputs.actionRisk === "high") {
+    level = "HIGH";
+    reasons.push("High-risk action involved.");
+  }
+
+  const blockAutoResolution = level === "HIGH" || consistency === "conflicting";
+  const missingEvidence: string[] = [];
+  if (evidenceCompleteness < 1) {
+    if (!inputs.policyCertain) missingEvidence.push("A policy that clearly permits the proposed action");
+    if (inputs.contradictions > 0) missingEvidence.push("Evidence that reconciles the contradiction");
+    if (evidenceCompleteness < 0.5) missingEvidence.push(`Additional factual evidence (${Math.ceil(inputs.expectedEvidence - inputs.evidenceCount)} items)`);
+  }
+
+  return {
+    level,
+    confidence: inputs.aiConfidence,
+    evidenceCompleteness: Math.round(evidenceCompleteness * 100) / 100,
+    evidenceConsistency: consistency,
+    policyCertainty: inputs.policyCertain ? "certain" : "uncertain",
+    actionRisk: inputs.actionRisk,
+    missingEvidence,
+    blockAutoResolution,
+    recommendHumanReview: blockAutoResolution || level === "MODERATE",
+    reason: reasons.length > 0 ? reasons.join(" ") : "Evidence is sufficient and consistent; confidence is acceptable.",
+  };
+}
 
 // --- _shared/events.ts ---
 // =====================================================================
@@ -2637,6 +2859,8 @@ export async function llmRespond(
 
 const BOOT_SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const BOOT_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+const AUTH_SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
+const AUTH_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 
 async function handleChat(token: string | null, body: Record<string, unknown>): Promise<Response> {
   const caller = await resolveCaller(token);
@@ -2768,19 +2992,65 @@ async function handleActions(token: string | null, body: Record<string, unknown>
   };
   const gates = evaluateAllGates(gateInputs);
 
+  const humanDecision = body.human_decision ? String(body.human_decision) : null;
+
   if (!gates.canAutoResolve) {
-    await emitAudit(db, caseUuid, caller.actor, "supervisor", `block_${action}`, {
-      decision: { gates: gates.gates, allowed: false },
-      authority: gates.gates.authority,
-      risk: gates.gates.risk,
-    });
-    return jsonResponse({
-      ok: false,
-      action,
-      blocked: true,
-      gates: gates.gates,
-      detail: "Four-gate controller blocked the action.",
-    }, 403);
+    // ---- Human approval / override path ----
+    const staffLimit = amount != null ? (AUTHORITY_LIMITS[caller.staffRole] ?? 0) : 0;
+    const approvableByHuman =
+      policyEval.allowed &&
+      !Boolean(cs.contradiction_detected) &&
+      amount != null &&
+      amount <= staffLimit &&
+      gates.gates.risk.status !== "BLOCK";
+
+    if (humanDecision === "approve") {
+      if (!approvableByHuman) {
+        await emitAudit(db, caseUuid, caller.actor, "supervisor", `reject_${action}`, {
+          input: { human_decision: "approve", amount },
+          decision: { allowed: false, reason: "requested override exceeds available authority or blocked by risk/contradiction" },
+          authority: gates.gates.authority,
+          risk: gates.gates.risk,
+        });
+        return jsonResponse({
+          ok: false,
+          action,
+          blocked: true,
+          detail: "Approval denied — override exceeds the acting role's authority or is blocked by risk/contradiction.",
+        }, 403);
+      }
+      // Override proceeds; audit records the human decision before execution.
+      await emitAudit(db, caseUuid, caller.actor, "supervisor", `approve_${action}`, {
+        input: { amount },
+        decision: { human_approval: true, gates: gates.gates, allowed: true },
+        authority: gates.gates.authority,
+        risk: gates.gates.risk,
+      });
+    } else if (humanDecision === "reject") {
+      await emitAudit(db, caseUuid, caller.actor, "supervisor", `reject_${action}`, {
+        input: { amount },
+        decision: { human_decision: "reject", allowed: false },
+        authority: gates.gates.authority,
+        risk: gates.gates.risk,
+      });
+      return jsonResponse({ ok: true, action, decision: "rejected", detail: "Action rejected by human reviewer." });
+    } else {
+      // No decision yet → return an approval recommendation for the UI.
+      return jsonResponse({
+        ok: false,
+        action,
+        requires_human_approval: true,
+        approvable_by_human: approvableByHuman,
+        gates: gates.gates,
+        policy: { policy_id: policyEval.policyId, allowed: policyEval.allowed },
+        authority: gates.gates.authority,
+        risk: gates.gates.risk,
+        amount,
+        detail: approvableByHuman
+          ? "Autonomous gates did not pass, but a human reviewer with sufficient authority can approve this action."
+          : "Autonomous gates did not pass and this action is not approvable by the acting role.",
+      }, 202);
+    }
   }
 
   let result: { action: unknown; verification: unknown } | null = null;
@@ -3099,6 +3369,230 @@ async function handleSelfcheck(): Promise<Response> {
   return jsonResponse({ ok: true, allPass, results });
 }
 
+
+
+// ---------------------------------------------------------------------
+// Knowledge feedback loop: candidates reviewed by humans before they can
+// enter the trusted knowledge base.
+// ---------------------------------------------------------------------
+async function handleKnowledgeCandidates(token: string | null, body: Record<string, unknown>): Promise<Response> {
+  const caller = await resolveCaller(token);
+  if (!caller.staffRole) return jsonResponse({ error: "forbidden", detail: "Staff role required" }, 403);
+
+  const op = String(body.op ?? "list");
+
+  if (op === "list") {
+    const { data } = await db.from("resolveai_knowledge_candidates").select("*").order("created_at", { ascending: false }).limit(50);
+    return jsonResponse({ ok: true, candidates: data ?? [] });
+  }
+
+  if (op === "create") {
+    const caseId = String(body.case_id ?? "");
+    if (!caseId) return jsonResponse({ error: "case_id_required" }, 400);
+    const { data: caseRow } = await db.from("resolveai_cases").select("*").eq("id", caseId).maybeSingle();
+    if (!caseRow) return jsonResponse({ error: "case_not_found" }, 404);
+    const cs = caseRow as Record<string, unknown>;
+    const { data: existing } = await db.from("resolveai_knowledge_candidates").select("id").eq("case_id", caseId).eq("status", "pending").maybeSingle();
+    if (existing) return jsonResponse({ ok: true, candidate: existing, note: "already_pending" });
+
+    const problem = String(cs.message_text ?? "Unspecified customer issue");
+    const resolution = body.resolution ? String(body.resolution) : String(cs.resolution_status ?? "Resolved by human review");
+    const { data: cand } = await db.from("resolveai_knowledge_candidates").insert({
+      case_id: caseId,
+      problem,
+      root_cause: cs.root_cause ? String(cs.root_cause) : null,
+      resolution,
+      supporting_cases: [cs.case_id],
+      confidence: cs.root_cause_confidence != null ? Number(cs.root_cause_confidence) : 0.5,
+      status: "pending",
+    }).select("*").single();
+    await emitAudit(db, caseId, caller.actor, "supervisor", "knowledge_candidate_created", {
+      input: { resolution },
+      result: { candidate: (cand as { id: string }).id },
+    });
+    return jsonResponse({ ok: true, candidate: cand });
+  }
+
+  if (op === "review") {
+    if (!["manager", "admin"].includes(caller.staffRole)) {
+      return jsonResponse({ error: "forbidden", detail: "Manager or Admin required to approve knowledge" }, 403);
+    }
+    const id = String(body.id ?? "");
+    const decision = String(body.decision ?? "");
+    if (!id || !["approved", "rejected"].includes(decision)) return jsonResponse({ error: "id_and_decision_required" }, 400);
+    const { data: cand } = await db.from("resolveai_knowledge_candidates").update({
+      status: decision,
+      reviewed_by: caller.actor,
+      reviewed_at: new Date().toISOString(),
+    }).eq("id", id).select("*").single();
+    await emitAudit(db, cand ? String((cand as { case_id: string }).case_id) : null, caller.actor, "supervisor", `knowledge_candidate_${decision}`, {
+      input: { id },
+      result: { decision },
+    });
+    return jsonResponse({ ok: true, candidate: cand });
+  }
+
+  return jsonResponse({ error: "unknown_op" }, 400);
+}
+
+// ---------------------------------------------------------------------
+// System health: real checks against database, auth, AI, RAG, engine.
+// ---------------------------------------------------------------------
+async function handleHealth(): Promise<Response> {
+  const checks: { component: string; status: string; detail: string }[] = [];
+
+  // Database
+  try {
+    const { data, error } = await db.from("resolveai_customers").select("id").limit(1);
+    checks.push({ component: "Database", status: error ? "FAILED" : "HEALTHY", detail: error ? error.message : "read query ok" });
+  } catch (e) {
+    checks.push({ component: "Database", status: "FAILED", detail: e instanceof Error ? e.message : String(e) });
+  }
+
+  // Authentication (sign-in path used by clients)
+  try {
+    const res = await fetch(`${AUTH_SUPABASE_URL}/auth/v1/health`, { signal: AbortSignal.timeout(10000) });
+    checks.push({
+      component: "Authentication",
+      status: AUTH_ANON_KEY ? (res.ok ? "HEALTHY" : "DEGRADED") : "FAILED",
+      detail: !AUTH_ANON_KEY ? "anon key missing" : res.ok ? "auth endpoint reachable" : `auth health returned ${res.status}`,
+    });
+  } catch (e) {
+    checks.push({ component: "Authentication", status: "DEGRADED", detail: e instanceof Error ? e.message : String(e) });
+  }
+
+  // Backend function (self ping via analytics RPC)
+  try {
+    const { data, error } = await db.rpc("resolveai_analytics_snapshot");
+    checks.push({ component: "Backend", status: error ? "DEGRADED" : "HEALTHY", detail: error ? error.message : "analytics RPC ok" });
+    void data;
+  } catch (e) {
+    checks.push({ component: "Backend", status: "DEGRADED", detail: e instanceof Error ? e.message : String(e) });
+  }
+
+  // AI provider (probe the gateway with a minimal call)
+  try {
+    const AI_TOKEN = Deno.env.get("AI_API_TOKEN_774223bb88c5");
+    if (!AI_TOKEN) {
+      checks.push({ component: "AI provider", status: "DEGRADED", detail: "LLM token not configured (deterministic fallbacks remain active)" });
+    } else {
+      const res = await fetch("https://api.enter.pro/code/api/v1/ai/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${AI_TOKEN}`,
+          "Content-Type": "application/json",
+          "X-Enter-Project-ID": "774223bb88c54f7c9c0176a4946bc05f",
+        },
+        body: JSON.stringify({ model: "deepseek/deepseek-v4-flash", messages: [{ role: "user", content: "ping" }], stream: false, max_tokens: 1 }),
+        signal: AbortSignal.timeout(15000),
+      });
+      checks.push({ component: "AI provider", status: res.ok ? "HEALTHY" : "DEGRADED", detail: res.ok ? "gateway reachable" : `gateway returned ${res.status}` });
+    }
+  } catch (e) {
+    checks.push({ component: "AI provider", status: "DEGRADED", detail: e instanceof Error ? e.message : String(e) });
+  }
+
+  // Knowledge search (RAG retrieval)
+  try {
+    const { data, error } = await db.rpc("resolveai_search_knowledge", { query: "refund", max_results: 1 });
+    checks.push({ component: "Knowledge search (RAG)", status: error ? "FAILED" : "HEALTHY", detail: error ? error.message : `${(data ?? []).length} chunk(s) retrieved` });
+  } catch (e) {
+    checks.push({ component: "Knowledge search (RAG)", status: "FAILED", detail: e instanceof Error ? e.message : String(e) });
+  }
+
+  // Action engine (agent_actions writable + readable)
+  try {
+    const { data, error } = await db.from("resolveai_agent_actions").select("id").limit(1);
+    checks.push({ component: "Action engine", status: error ? "FAILED" : "HEALTHY", detail: error ? error.message : "agent_actions accessible" });
+    void data;
+  } catch (e) {
+    checks.push({ component: "Action engine", status: "FAILED", detail: e instanceof Error ? e.message : String(e) });
+  }
+
+  // Verification (action_verifications accessible)
+  try {
+    const { data, error } = await db.from("resolveai_action_verifications").select("id").limit(1);
+    checks.push({ component: "Verification", status: error ? "FAILED" : "HEALTHY", detail: error ? error.message : "verification rows accessible" });
+    void data;
+  } catch (e) {
+    checks.push({ component: "Verification", status: "FAILED", detail: e instanceof Error ? e.message : String(e) });
+  }
+
+  // Realtime (publication membership)
+  try {
+    const { data, error } = await db.from("resolveai_case_events").select("id").limit(1);
+    checks.push({ component: "Realtime", status: error ? "DEGRADED" : "HEALTHY", detail: error ? error.message : "case_events accessible (realtime source)" });
+    void data;
+  } catch (e) {
+    checks.push({ component: "Realtime", status: "DEGRADED", detail: e instanceof Error ? e.message : String(e) });
+  }
+
+  // Analytics
+  try {
+    const { data, error } = await db.rpc("resolveai_analytics_snapshot");
+    checks.push({ component: "Analytics", status: error ? "FAILED" : "HEALTHY", detail: error ? error.message : "KPI snapshot ok" });
+    void data;
+  } catch (e) {
+    checks.push({ component: "Analytics", status: "FAILED", detail: e instanceof Error ? e.message : String(e) });
+  }
+
+  // Audit logging
+  try {
+    const { data, error } = await db.from("resolveai_audit_logs").select("id").limit(1);
+    checks.push({ component: "Audit logging", status: error ? "FAILED" : "HEALTHY", detail: error ? error.message : "audit table accessible" });
+    void data;
+  } catch (e) {
+    checks.push({ component: "Audit logging", status: "FAILED", detail: e instanceof Error ? e.message : String(e) });
+  }
+
+  const worst = checks.some((c) => c.status === "FAILED") ? "FAILED" : checks.some((c) => c.status === "DEGRADED") ? "DEGRADED" : "HEALTHY";
+  return jsonResponse({ ok: true, status: worst, checks });
+}
+
+// ---------------------------------------------------------------------
+// Account linking: associate a verified OAuth identity with an existing
+// ResolveAI customer/staff profile by email (no duplicates, no role grants).
+// ---------------------------------------------------------------------
+async function handleLinkAccount(token: string | null): Promise<Response> {
+  const caller = await resolveCaller(token);
+  if (!caller.userId) return jsonResponse({ error: "unauthenticated" }, 401);
+  const emailRes = await fetch(`${AUTH_SUPABASE_URL}/auth/v1/user`, {
+    headers: { apikey: AUTH_ANON_KEY, Authorization: `Bearer ${token}` },
+  });
+  if (!emailRes.ok) return jsonResponse({ error: "auth_lookup_failed" }, 401);
+  const uinfo = (await emailRes.json()) as { email?: string; user_metadata?: Record<string, unknown> };
+
+  const { data: customer } = await db
+    .from("resolveai_customers")
+    .select("id, name")
+    .eq("email", uinfo.email ?? "")
+    .maybeSingle();
+
+  if (customer) {
+    const c = customer as { id: string };
+    if (c.id !== caller.customerId) {
+      // Claim only when the profile is unowned or owned by this user.
+      const { data: existing } = await db.from("resolveai_customers").select("user_id").eq("id", c.id).maybeSingle();
+      const owner = existing ? (existing as { user_id: string | null }).user_id : null;
+      if (!owner || owner === caller.userId) {
+        await db.from("resolveai_customers").update({ user_id: caller.userId }).eq("id", c.id);
+        await emitAudit(db, null, caller.actor, "auth", "account_linked", {
+          input: { email: uinfo.email },
+          decision: { customer_id: c.id },
+        });
+        return jsonResponse({ ok: true, linked: true, customer_id: c.id });
+      }
+      return jsonResponse({ ok: false, linked: false, detail: "Profile is owned by another account" }, 409);
+    }
+    return jsonResponse({ ok: true, linked: true, customer_id: c.id });
+  }
+
+  const { data: staff } = await db.from("resolveai_staff").select("id, name").eq("name", uinfo.email ?? "").maybeSingle();
+  void staff;
+  return jsonResponse({ ok: true, linked: false, detail: "No existing profile with this email" });
+}
+
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
@@ -3122,6 +3616,12 @@ Deno.serve(async (req) => {
         return await handleBootstrap();
       case "selfcheck":
         return await handleSelfcheck();
+      case "knowledge_candidates":
+        return await handleKnowledgeCandidates(token, body);
+      case "health":
+        return await handleHealth();
+      case "link_account":
+        return await handleLinkAccount(token);
       default:
         return jsonResponse({ error: "unknown_route" }, 404);
     }

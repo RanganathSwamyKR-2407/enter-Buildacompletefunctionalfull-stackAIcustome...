@@ -100,6 +100,8 @@ export interface Contradiction {
   label: string;
   evidence: { source: string; value: string }[];
   decision: "AUTO-RESOLUTION BLOCKED";
+  impact?: string;
+  requiredAction?: string;
 }
 
 export interface GateCheck {

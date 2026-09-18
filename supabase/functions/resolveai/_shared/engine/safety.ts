@@ -41,6 +41,8 @@ export function detectContradictions(
             },
           ],
           decision: "AUTO-RESOLUTION BLOCKED",
+          impact: "HIGH — customer denies receipt while courier proof points to a different location; refunding or re-sending could be fraudulent or duplicate.",
+          requiredAction: "Human investigation of courier proof-of-delivery vs customer address before any resolution.",
         });
       } else if (!delivery.gps || delivery.gps.matched == null) {
         found.push({
@@ -53,6 +55,8 @@ export function detectContradictions(
             { source: "GPS", value: "proof-of-delivery coordinates not recorded" },
           ],
           decision: "AUTO-RESOLUTION BLOCKED",
+          impact: "MEDIUM — delivery record exists but cannot be verified geospatially.",
+          requiredAction: "Request courier photographs/proof or re-verify with the courier partner.",
         });
       }
     }

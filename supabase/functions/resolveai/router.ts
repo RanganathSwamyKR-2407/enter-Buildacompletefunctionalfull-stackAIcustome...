@@ -15,6 +15,7 @@
 // deployable bundle). Edit this file and _shared/, then run the bundler.
 // =====================================================================
 import { corsHeaders, jsonResponse } from "./_shared/cors.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
 import { db } from "./_shared/db.ts";
 import { resolveCaller, bearerToken } from "./_shared/auth.ts";
 import { runLifecycle } from "./_shared/lifecycle.ts";
@@ -36,6 +37,8 @@ import { emitAudit, emitAnalytics, updateCase } from "./_shared/events.ts";
 
 const BOOT_SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const BOOT_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+const AUTH_SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
+const AUTH_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 
 async function handleChat(token: string | null, body: Record<string, unknown>): Promise<Response> {
   const caller = await resolveCaller(token);
@@ -167,19 +170,65 @@ async function handleActions(token: string | null, body: Record<string, unknown>
   };
   const gates = evaluateAllGates(gateInputs);
 
+  const humanDecision = body.human_decision ? String(body.human_decision) : null;
+
   if (!gates.canAutoResolve) {
-    await emitAudit(db, caseUuid, caller.actor, "supervisor", `block_${action}`, {
-      decision: { gates: gates.gates, allowed: false },
-      authority: gates.gates.authority,
-      risk: gates.gates.risk,
-    });
-    return jsonResponse({
-      ok: false,
-      action,
-      blocked: true,
-      gates: gates.gates,
-      detail: "Four-gate controller blocked the action.",
-    }, 403);
+    // ---- Human approval / override path ----
+    const staffLimit = amount != null ? (AUTHORITY_LIMITS[caller.staffRole] ?? 0) : 0;
+    const approvableByHuman =
+      policyEval.allowed &&
+      !Boolean(cs.contradiction_detected) &&
+      amount != null &&
+      amount <= staffLimit &&
+      gates.gates.risk.status !== "BLOCK";
+
+    if (humanDecision === "approve") {
+      if (!approvableByHuman) {
+        await emitAudit(db, caseUuid, caller.actor, "supervisor", `reject_${action}`, {
+          input: { human_decision: "approve", amount },
+          decision: { allowed: false, reason: "requested override exceeds available authority or blocked by risk/contradiction" },
+          authority: gates.gates.authority,
+          risk: gates.gates.risk,
+        });
+        return jsonResponse({
+          ok: false,
+          action,
+          blocked: true,
+          detail: "Approval denied — override exceeds the acting role's authority or is blocked by risk/contradiction.",
+        }, 403);
+      }
+      // Override proceeds; audit records the human decision before execution.
+      await emitAudit(db, caseUuid, caller.actor, "supervisor", `approve_${action}`, {
+        input: { amount },
+        decision: { human_approval: true, gates: gates.gates, allowed: true },
+        authority: gates.gates.authority,
+        risk: gates.gates.risk,
+      });
+    } else if (humanDecision === "reject") {
+      await emitAudit(db, caseUuid, caller.actor, "supervisor", `reject_${action}`, {
+        input: { amount },
+        decision: { human_decision: "reject", allowed: false },
+        authority: gates.gates.authority,
+        risk: gates.gates.risk,
+      });
+      return jsonResponse({ ok: true, action, decision: "rejected", detail: "Action rejected by human reviewer." });
+    } else {
+      // No decision yet → return an approval recommendation for the UI.
+      return jsonResponse({
+        ok: false,
+        action,
+        requires_human_approval: true,
+        approvable_by_human: approvableByHuman,
+        gates: gates.gates,
+        policy: { policy_id: policyEval.policyId, allowed: policyEval.allowed },
+        authority: gates.gates.authority,
+        risk: gates.gates.risk,
+        amount,
+        detail: approvableByHuman
+          ? "Autonomous gates did not pass, but a human reviewer with sufficient authority can approve this action."
+          : "Autonomous gates did not pass and this action is not approvable by the acting role.",
+      }, 202);
+    }
   }
 
   let result: { action: unknown; verification: unknown } | null = null;
@@ -498,6 +547,230 @@ async function handleSelfcheck(): Promise<Response> {
   return jsonResponse({ ok: true, allPass, results });
 }
 
+
+
+// ---------------------------------------------------------------------
+// Knowledge feedback loop: candidates reviewed by humans before they can
+// enter the trusted knowledge base.
+// ---------------------------------------------------------------------
+async function handleKnowledgeCandidates(token: string | null, body: Record<string, unknown>): Promise<Response> {
+  const caller = await resolveCaller(token);
+  if (!caller.staffRole) return jsonResponse({ error: "forbidden", detail: "Staff role required" }, 403);
+
+  const op = String(body.op ?? "list");
+
+  if (op === "list") {
+    const { data } = await db.from("resolveai_knowledge_candidates").select("*").order("created_at", { ascending: false }).limit(50);
+    return jsonResponse({ ok: true, candidates: data ?? [] });
+  }
+
+  if (op === "create") {
+    const caseId = String(body.case_id ?? "");
+    if (!caseId) return jsonResponse({ error: "case_id_required" }, 400);
+    const { data: caseRow } = await db.from("resolveai_cases").select("*").eq("id", caseId).maybeSingle();
+    if (!caseRow) return jsonResponse({ error: "case_not_found" }, 404);
+    const cs = caseRow as Record<string, unknown>;
+    const { data: existing } = await db.from("resolveai_knowledge_candidates").select("id").eq("case_id", caseId).eq("status", "pending").maybeSingle();
+    if (existing) return jsonResponse({ ok: true, candidate: existing, note: "already_pending" });
+
+    const problem = String(cs.message_text ?? "Unspecified customer issue");
+    const resolution = body.resolution ? String(body.resolution) : String(cs.resolution_status ?? "Resolved by human review");
+    const { data: cand } = await db.from("resolveai_knowledge_candidates").insert({
+      case_id: caseId,
+      problem,
+      root_cause: cs.root_cause ? String(cs.root_cause) : null,
+      resolution,
+      supporting_cases: [cs.case_id],
+      confidence: cs.root_cause_confidence != null ? Number(cs.root_cause_confidence) : 0.5,
+      status: "pending",
+    }).select("*").single();
+    await emitAudit(db, caseId, caller.actor, "supervisor", "knowledge_candidate_created", {
+      input: { resolution },
+      result: { candidate: (cand as { id: string }).id },
+    });
+    return jsonResponse({ ok: true, candidate: cand });
+  }
+
+  if (op === "review") {
+    if (!["manager", "admin"].includes(caller.staffRole)) {
+      return jsonResponse({ error: "forbidden", detail: "Manager or Admin required to approve knowledge" }, 403);
+    }
+    const id = String(body.id ?? "");
+    const decision = String(body.decision ?? "");
+    if (!id || !["approved", "rejected"].includes(decision)) return jsonResponse({ error: "id_and_decision_required" }, 400);
+    const { data: cand } = await db.from("resolveai_knowledge_candidates").update({
+      status: decision,
+      reviewed_by: caller.actor,
+      reviewed_at: new Date().toISOString(),
+    }).eq("id", id).select("*").single();
+    await emitAudit(db, cand ? String((cand as { case_id: string }).case_id) : null, caller.actor, "supervisor", `knowledge_candidate_${decision}`, {
+      input: { id },
+      result: { decision },
+    });
+    return jsonResponse({ ok: true, candidate: cand });
+  }
+
+  return jsonResponse({ error: "unknown_op" }, 400);
+}
+
+// ---------------------------------------------------------------------
+// System health: real checks against database, auth, AI, RAG, engine.
+// ---------------------------------------------------------------------
+async function handleHealth(): Promise<Response> {
+  const checks: { component: string; status: string; detail: string }[] = [];
+
+  // Database
+  try {
+    const { data, error } = await db.from("resolveai_customers").select("id").limit(1);
+    checks.push({ component: "Database", status: error ? "FAILED" : "HEALTHY", detail: error ? error.message : "read query ok" });
+  } catch (e) {
+    checks.push({ component: "Database", status: "FAILED", detail: e instanceof Error ? e.message : String(e) });
+  }
+
+  // Authentication (sign-in path used by clients)
+  try {
+    const res = await fetch(`${AUTH_SUPABASE_URL}/auth/v1/health`, { signal: AbortSignal.timeout(10000) });
+    checks.push({
+      component: "Authentication",
+      status: AUTH_ANON_KEY ? (res.ok ? "HEALTHY" : "DEGRADED") : "FAILED",
+      detail: !AUTH_ANON_KEY ? "anon key missing" : res.ok ? "auth endpoint reachable" : `auth health returned ${res.status}`,
+    });
+  } catch (e) {
+    checks.push({ component: "Authentication", status: "DEGRADED", detail: e instanceof Error ? e.message : String(e) });
+  }
+
+  // Backend function (self ping via analytics RPC)
+  try {
+    const { data, error } = await db.rpc("resolveai_analytics_snapshot");
+    checks.push({ component: "Backend", status: error ? "DEGRADED" : "HEALTHY", detail: error ? error.message : "analytics RPC ok" });
+    void data;
+  } catch (e) {
+    checks.push({ component: "Backend", status: "DEGRADED", detail: e instanceof Error ? e.message : String(e) });
+  }
+
+  // AI provider (probe the gateway with a minimal call)
+  try {
+    const AI_TOKEN = Deno.env.get("AI_API_TOKEN_774223bb88c5");
+    if (!AI_TOKEN) {
+      checks.push({ component: "AI provider", status: "DEGRADED", detail: "LLM token not configured (deterministic fallbacks remain active)" });
+    } else {
+      const res = await fetch("https://api.enter.pro/code/api/v1/ai/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${AI_TOKEN}`,
+          "Content-Type": "application/json",
+          "X-Enter-Project-ID": "774223bb88c54f7c9c0176a4946bc05f",
+        },
+        body: JSON.stringify({ model: "deepseek/deepseek-v4-flash", messages: [{ role: "user", content: "ping" }], stream: false, max_tokens: 1 }),
+        signal: AbortSignal.timeout(15000),
+      });
+      checks.push({ component: "AI provider", status: res.ok ? "HEALTHY" : "DEGRADED", detail: res.ok ? "gateway reachable" : `gateway returned ${res.status}` });
+    }
+  } catch (e) {
+    checks.push({ component: "AI provider", status: "DEGRADED", detail: e instanceof Error ? e.message : String(e) });
+  }
+
+  // Knowledge search (RAG retrieval)
+  try {
+    const { data, error } = await db.rpc("resolveai_search_knowledge", { query: "refund", max_results: 1 });
+    checks.push({ component: "Knowledge search (RAG)", status: error ? "FAILED" : "HEALTHY", detail: error ? error.message : `${(data ?? []).length} chunk(s) retrieved` });
+  } catch (e) {
+    checks.push({ component: "Knowledge search (RAG)", status: "FAILED", detail: e instanceof Error ? e.message : String(e) });
+  }
+
+  // Action engine (agent_actions writable + readable)
+  try {
+    const { data, error } = await db.from("resolveai_agent_actions").select("id").limit(1);
+    checks.push({ component: "Action engine", status: error ? "FAILED" : "HEALTHY", detail: error ? error.message : "agent_actions accessible" });
+    void data;
+  } catch (e) {
+    checks.push({ component: "Action engine", status: "FAILED", detail: e instanceof Error ? e.message : String(e) });
+  }
+
+  // Verification (action_verifications accessible)
+  try {
+    const { data, error } = await db.from("resolveai_action_verifications").select("id").limit(1);
+    checks.push({ component: "Verification", status: error ? "FAILED" : "HEALTHY", detail: error ? error.message : "verification rows accessible" });
+    void data;
+  } catch (e) {
+    checks.push({ component: "Verification", status: "FAILED", detail: e instanceof Error ? e.message : String(e) });
+  }
+
+  // Realtime (publication membership)
+  try {
+    const { data, error } = await db.from("resolveai_case_events").select("id").limit(1);
+    checks.push({ component: "Realtime", status: error ? "DEGRADED" : "HEALTHY", detail: error ? error.message : "case_events accessible (realtime source)" });
+    void data;
+  } catch (e) {
+    checks.push({ component: "Realtime", status: "DEGRADED", detail: e instanceof Error ? e.message : String(e) });
+  }
+
+  // Analytics
+  try {
+    const { data, error } = await db.rpc("resolveai_analytics_snapshot");
+    checks.push({ component: "Analytics", status: error ? "FAILED" : "HEALTHY", detail: error ? error.message : "KPI snapshot ok" });
+    void data;
+  } catch (e) {
+    checks.push({ component: "Analytics", status: "FAILED", detail: e instanceof Error ? e.message : String(e) });
+  }
+
+  // Audit logging
+  try {
+    const { data, error } = await db.from("resolveai_audit_logs").select("id").limit(1);
+    checks.push({ component: "Audit logging", status: error ? "FAILED" : "HEALTHY", detail: error ? error.message : "audit table accessible" });
+    void data;
+  } catch (e) {
+    checks.push({ component: "Audit logging", status: "FAILED", detail: e instanceof Error ? e.message : String(e) });
+  }
+
+  const worst = checks.some((c) => c.status === "FAILED") ? "FAILED" : checks.some((c) => c.status === "DEGRADED") ? "DEGRADED" : "HEALTHY";
+  return jsonResponse({ ok: true, status: worst, checks });
+}
+
+// ---------------------------------------------------------------------
+// Account linking: associate a verified OAuth identity with an existing
+// ResolveAI customer/staff profile by email (no duplicates, no role grants).
+// ---------------------------------------------------------------------
+async function handleLinkAccount(token: string | null): Promise<Response> {
+  const caller = await resolveCaller(token);
+  if (!caller.userId) return jsonResponse({ error: "unauthenticated" }, 401);
+  const emailRes = await fetch(`${AUTH_SUPABASE_URL}/auth/v1/user`, {
+    headers: { apikey: AUTH_ANON_KEY, Authorization: `Bearer ${token}` },
+  });
+  if (!emailRes.ok) return jsonResponse({ error: "auth_lookup_failed" }, 401);
+  const uinfo = (await emailRes.json()) as { email?: string; user_metadata?: Record<string, unknown> };
+
+  const { data: customer } = await db
+    .from("resolveai_customers")
+    .select("id, name")
+    .eq("email", uinfo.email ?? "")
+    .maybeSingle();
+
+  if (customer) {
+    const c = customer as { id: string };
+    if (c.id !== caller.customerId) {
+      // Claim only when the profile is unowned or owned by this user.
+      const { data: existing } = await db.from("resolveai_customers").select("user_id").eq("id", c.id).maybeSingle();
+      const owner = existing ? (existing as { user_id: string | null }).user_id : null;
+      if (!owner || owner === caller.userId) {
+        await db.from("resolveai_customers").update({ user_id: caller.userId }).eq("id", c.id);
+        await emitAudit(db, null, caller.actor, "auth", "account_linked", {
+          input: { email: uinfo.email },
+          decision: { customer_id: c.id },
+        });
+        return jsonResponse({ ok: true, linked: true, customer_id: c.id });
+      }
+      return jsonResponse({ ok: false, linked: false, detail: "Profile is owned by another account" }, 409);
+    }
+    return jsonResponse({ ok: true, linked: true, customer_id: c.id });
+  }
+
+  const { data: staff } = await db.from("resolveai_staff").select("id, name").eq("name", uinfo.email ?? "").maybeSingle();
+  void staff;
+  return jsonResponse({ ok: true, linked: false, detail: "No existing profile with this email" });
+}
+
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
@@ -521,6 +794,12 @@ Deno.serve(async (req) => {
         return await handleBootstrap();
       case "selfcheck":
         return await handleSelfcheck();
+      case "knowledge_candidates":
+        return await handleKnowledgeCandidates(token, body);
+      case "health":
+        return await handleHealth();
+      case "link_account":
+        return await handleLinkAccount(token);
       default:
         return jsonResponse({ error: "unknown_route" }, 404);
     }

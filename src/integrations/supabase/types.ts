@@ -4006,6 +4006,55 @@ export type Database = {
           },
         ]
       }
+      resolveai_knowledge_candidates: {
+        Row: {
+          case_id: string
+          confidence: number
+          created_at: string
+          id: string
+          problem: string
+          resolution: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          root_cause: string | null
+          status: string
+          supporting_cases: Json
+        }
+        Insert: {
+          case_id: string
+          confidence?: number
+          created_at?: string
+          id?: string
+          problem: string
+          resolution: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          root_cause?: string | null
+          status?: string
+          supporting_cases?: Json
+        }
+        Update: {
+          case_id?: string
+          confidence?: number
+          created_at?: string
+          id?: string
+          problem?: string
+          resolution?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          root_cause?: string | null
+          status?: string
+          supporting_cases?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resolveai_knowledge_candidates_case_id_fkey"
+            columns: ["case_id"]
+            referencedRelation: "resolveai_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       resolveai_knowledge_chunks: {
         Row: {
           chunk_index: number
