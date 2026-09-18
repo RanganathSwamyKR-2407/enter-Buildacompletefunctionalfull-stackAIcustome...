@@ -1804,11 +1804,15 @@ export interface LifecycleRequest {
   actor?: string;
   fast?: boolean; // true disables the demo pacing delays (self-check)
   skipLlm?: boolean; // true disables LLM calls (self-check runs deterministic-only)
+  earlyReturn?: boolean; // create case + first events, return immediately (live "start")
+  existingCaseUuid?: string; // continue an existing case (live "continue")
+  existingConversationUuid?: string | null; // reuse conversation on continue
 }
 
 export interface LifecycleResult {
   caseUuid: string;
   caseId: string;
+  conversationUuid: string | null;
   response: string;
   status: string;
   resolutionStatus: string | null;
@@ -1867,41 +1871,89 @@ export async function runLifecycle(
     : null;
   const repeatContacts = (tickets ?? []).length;
 
-  // Conversation + message
-  let convoUuid = openConvo?.id ?? null;
-  if (!convoUuid) {
-    const { data: newConvo } = await db
-      .from("resolveai_conversations")
-      .insert({ customer_id: req.customerId, status: "active" })
-      .select("id")
-      .single();
-    convoUuid = (newConvo as { id: string }).id;
-  }
-  await db.from("resolveai_messages").insert({
-    conversation_id: convoUuid,
-    role: "customer",
-    content: req.message,
-  });
+  // Conversation + message + Case Twin row.
+  // On "continue" the case already exists (created by the "start" call).
+  let convoUuid = req.existingConversationUuid ?? openConvo?.id ?? null;
+  let caseUuid: string;
+  let caseId: string;
+  const message = req.message.trim() || "";
 
-  // Case Twin row
-  const caseId = await nextCaseId(db);
-  const caseUuid = crypto.randomUUID();
-  await db.from("resolveai_cases").insert({
-    id: caseUuid,
-    case_id: caseId,
-    customer_id: req.customerId,
-    conversation_id: convoUuid,
-    message_text: req.message,
-    status: "investigating",
-    created_at: new Date().toISOString(),
-  });
+  if (req.existingCaseUuid) {
+    caseUuid = req.existingCaseUuid;
+    const { data: existing, error: existingErr } = await db
+      .from("resolveai_cases")
+      .select("case_id, conversation_id, message_text")
+      .eq("id", caseUuid)
+      .maybeSingle();
+    if (existingErr || !existing) throw new Error("case_not_found");
+    const ex = existing as { case_id: string; conversation_id: string | null; message_text: string | null };
+    caseId = ex.case_id;
+    convoUuid = convoUuid ?? ex.conversation_id;
+    const baseMessage = message || ex.message_text || "";
+    // Ensure at least one customer message exists for the pipeline.
+    if (!baseMessage) throw new Error("message_required");
+  } else {
+    if (!convoUuid) {
+      const { data: newConvo } = await db
+        .from("resolveai_conversations")
+        .insert({ customer_id: req.customerId, status: "active" })
+        .select("id")
+        .single();
+      convoUuid = (newConvo as { id: string }).id;
+    }
+    await db.from("resolveai_messages").insert({
+      conversation_id: convoUuid,
+      role: "customer",
+      content: message,
+    });
+    caseId = await nextCaseId(db);
+    caseUuid = crypto.randomUUID();
+    await db.from("resolveai_cases").insert({
+      id: caseUuid,
+      case_id: caseId,
+      customer_id: req.customerId,
+      conversation_id: convoUuid,
+      message_text: message,
+      status: "investigating",
+      created_at: new Date().toISOString(),
+    });
+  }
 
   // -----------------------------------------------------------------
   // 2. Understanding (LLM + deterministic fusion)
   // -----------------------------------------------------------------
-  await emitCaseEvent(db, caseUuid, "evidence_ingest", "Evidence Ingest", "running");
-  await sleep(delay);
-  await emitCaseEvent(db, caseUuid, "understanding", "AI Understanding", "running");
+  if (!req.existingCaseUuid) {
+    await emitCaseEvent(db, caseUuid, "evidence_ingest", "Evidence Ingest", "running");
+    await sleep(delay);
+    await emitCaseEvent(db, caseUuid, "understanding", "AI Understanding", "running");
+  }
+
+  if (req.earlyReturn) {
+    // Live "start": create the case, emit the first stage events and a
+    // deterministic intent, then hand control back so the Glass Box can
+    // subscribe and watch the continuation stream in via realtime.
+    const detIntent = routeTicket({ message, customerRepeatContacts: repeatContacts, llmUnderstanding: null });
+    await updateCase(db, caseUuid, { intent: detIntent.intent, priority: detIntent.priority, sentiment: detIntent.sentiment, urgency: detIntent.urgency });
+    await emitCaseEvent(db, caseUuid, "understanding", "AI Understanding", "ok", {
+      intent: detIntent.intent,
+      sub_intents: detIntent.subIntents,
+      urgency: detIntent.urgency,
+      sentiment: detIntent.sentiment,
+      status: "investigation_started",
+    });
+    return {
+      caseUuid,
+      caseId,
+      conversationUuid: convoUuid,
+      response: "",
+      status: "investigating",
+      resolutionStatus: "INVESTIGATION IN PROGRESS",
+      intent: detIntent.intent,
+      specialist: detIntent.specialist,
+      escalationScore: null,
+      snapshot: {},
+    };
+  }
 
   const customerContext = [
     `tier ${cust.tier}`,
@@ -1910,9 +1962,9 @@ export async function runLifecycle(
     `${(tickets ?? []).length} prior tickets`,
     `${(orders ?? []).length} orders`,
   ].join(", ");
-  const llmU = req.skipLlm ? null : await llmUnderstand(req.message, customerContext);
+  const llmU = req.skipLlm ? null : await llmUnderstand(message, customerContext);
   const routed = routeTicket({
-    message: req.message,
+    message: message,
     customerRepeatContacts: repeatContacts,
     llmUnderstanding: llmU,
   });
@@ -2055,7 +2107,7 @@ export async function runLifecycle(
   // -----------------------------------------------------------------
   await emitCaseEvent(db, caseUuid, "knowledge_retrieval", "Knowledge Retrieval", "running");
   await sleep(delay);
-  const searchQuery = req.message.toLowerCase().slice(0, 120);
+  const searchQuery = message.toLowerCase().slice(0, 120);
   const { data: rag } = await db.rpc("resolveai_search_knowledge", {
     query: searchQuery,
     max_results: 4,
@@ -2127,7 +2179,7 @@ export async function runLifecycle(
   await emitCaseEvent(db, caseUuid, "root_cause_analysis", "Root Cause Analysis", "running");
   await sleep(delay);
 
-  const customerClaimsNotReceived = /not received|never received|missing package|didn.t get|not got|not deliver/i.test(req.message);
+  const customerClaimsNotReceived = /not received|never received|missing package|didn.t get|not got|not deliver/i.test(message);
   const deliveryOrder = orderList.find((o) => o.status === "delivered");
   const contradictions: Contradiction[] = deliveryOrder
     ? detectContradictions({
@@ -2152,7 +2204,7 @@ export async function runLifecycle(
   let rootConfidence: number | null = null;
   let hypotheses: Hypothesis[] = [];
   const evidenceSummary = evidence.map((e) => `- [${e.source}] ${e.label}`).join("\n");
-  const llmHyp = req.skipLlm ? null : await llmHypothesize(req.message, evidenceSummary);
+  const llmHyp = req.skipLlm ? null : await llmHypothesize(message, evidenceSummary);
   if (llmHyp) {
     hypotheses = llmHyp.hypotheses.map((h, i) => ({
       ...h,
@@ -2271,7 +2323,7 @@ export async function runLifecycle(
     });
     escalationScore = esc.score;
     await recordEscalation(db, caseUuid, esc, contradictions, {
-      caseId, customer: cust, message: req.message, intent: routed.intent,
+      caseId, customer: cust, message: message, intent: routed.intent,
       evidence, hypotheses, rootCause, rootConfidence, gates, recommendedAction,
       tickets, orders, payments, sentiment: routed.sentiment, urgency: routed.urgency,
       conversation: null,
@@ -2421,7 +2473,7 @@ export async function runLifecycle(
         });
         escalationScore = esc.score;
         await recordEscalation(db, caseUuid, esc, [], {
-          caseId, customer: cust, message: req.message, intent: routed.intent,
+          caseId, customer: cust, message: message, intent: routed.intent,
           evidence, hypotheses, rootCause, rootConfidence, gates, recommendedAction,
           tickets, orders, payments, sentiment: routed.sentiment, urgency: routed.urgency,
           conversation: null,
@@ -2444,7 +2496,7 @@ export async function runLifecycle(
         });
         escalationScore = esc.score;
         await recordEscalation(db, caseUuid, esc, [], {
-          caseId, customer: cust, message: req.message, intent: routed.intent,
+          caseId, customer: cust, message: message, intent: routed.intent,
           evidence, hypotheses, rootCause, rootConfidence, gates, recommendedAction,
           tickets, orders, payments, sentiment: routed.sentiment, urgency: routed.urgency,
           conversation: null,
@@ -2475,7 +2527,7 @@ export async function runLifecycle(
       resolutionStatus = `ESCALATED — ${confidence < MIN_AUTO_CONFIDENCE ? "LOW CONFIDENCE" : "GATE NOT PASSED"}`;
       status = "escalated";
       await recordEscalation(db, caseUuid, esc, [], {
-        caseId, customer: cust, message: req.message, intent: routed.intent,
+        caseId, customer: cust, message: message, intent: routed.intent,
         evidence, hypotheses, rootCause, rootConfidence, gates, recommendedAction,
         tickets, orders, payments, sentiment: routed.sentiment, urgency: routed.urgency,
         conversation: null,
@@ -2556,6 +2608,7 @@ export async function runLifecycle(
   return {
     caseUuid,
     caseId,
+    conversationUuid: convoUuid,
     response,
     status,
     resolutionStatus,
@@ -2891,12 +2944,16 @@ async function handleChat(token: string | null, body: Record<string, unknown>): 
     actor: caller.actor,
     fast: body.fast === true,
     skipLlm: body.skipLlm === true,
+    earlyReturn: body.start_only === true,
+    existingCaseUuid: body.case_uuid ? String(body.case_uuid) : undefined,
+    existingConversationUuid: body.conversation_id ? String(body.conversation_id) : null,
   });
 
   return jsonResponse({
     ok: true,
     case_id: result.caseId,
     case_uuid: result.caseUuid,
+    conversation_id: result.conversationUuid,
     intent: result.intent,
     specialist: result.specialist,
     status: result.status,

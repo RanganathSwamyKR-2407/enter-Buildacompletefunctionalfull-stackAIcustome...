@@ -5,6 +5,7 @@ import type {
   CaseEvent,
   CaseRow,
   ChatResult,
+  ChatStartResult,
 } from "./types";
 
 const FN = "resolveai";
@@ -29,6 +30,19 @@ export const api = {
   /** Send a customer message → full autonomous lifecycle (returns the final reply). */
   chat: (message: string, customerId?: string, fast?: boolean) =>
     invoke<ChatResult>({ route: "chat", message, customer_id: customerId, fast: fast === true }),
+
+  /** Live two-phase flow (start): create the case + first investigation events, return immediately. */
+  chatStart: (message: string, customerId?: string) =>
+    invoke<ChatStartResult>({ route: "chat", message, customer_id: customerId, start_only: true }),
+
+  /** Live two-phase flow (continue): run the full pipeline on an existing case, streaming events via realtime. */
+  chatContinue: (caseUuid: string, conversationId?: string | null, message?: string) =>
+    invoke<ChatResult>({
+      route: "chat",
+      case_uuid: caseUuid,
+      conversation_id: conversationId ?? undefined,
+      message: message ?? undefined,
+    }),
 
   /** Run a staff-initiated gated action on a case. Supports human approval:
    * pass `human_decision: "approve" | "reject"` and optionally a modified amount. */

@@ -109,9 +109,28 @@ export default function Chat() {
     setSending(true);
     setBubbles((prev) => [...prev, { id: `u-${Date.now()}`, role: "user", content: text }]);
     try {
-      const res = await api.chat(text, customerIdState ?? undefined);
+      // Phase 1 — start: create the case + first investigation events and
+      // return immediately so the live investigation can be opened mid-flight.
+      const started = await api.chatStart(text, customerIdState ?? undefined);
+      const liveId = `live-${Date.now()}`;
       setBubbles((prev) => [
         ...prev,
+        {
+          id: liveId,
+          role: "assistant",
+          content: "Investigation started — opening live pipeline.",
+          status: "INVESTIGATION IN PROGRESS",
+          caseId: started.case_id,
+          caseUuid: started.case_uuid,
+          investigationLink: started.case_uuid ? `/investigations/${started.case_uuid}` : undefined,
+          live: true,
+        },
+      ]);
+      // Phase 2 — continue: run the full pipeline (events stream to the
+      // Glass Box via realtime). Fire-and-forget; resolve into the reply.
+      const res = await api.chatContinue(started.case_uuid, started.conversation_id, text);
+      setBubbles((prev) => [
+        ...prev.filter((b) => b.id !== liveId),
         {
           id: `a-${Date.now()}`,
           role: "assistant",

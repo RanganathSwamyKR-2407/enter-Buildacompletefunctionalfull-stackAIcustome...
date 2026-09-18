@@ -69,12 +69,16 @@ async function handleChat(token: string | null, body: Record<string, unknown>): 
     actor: caller.actor,
     fast: body.fast === true,
     skipLlm: body.skipLlm === true,
+    earlyReturn: body.start_only === true,
+    existingCaseUuid: body.case_uuid ? String(body.case_uuid) : undefined,
+    existingConversationUuid: body.conversation_id ? String(body.conversation_id) : null,
   });
 
   return jsonResponse({
     ok: true,
     case_id: result.caseId,
     case_uuid: result.caseUuid,
+    conversation_id: result.conversationUuid,
     intent: result.intent,
     specialist: result.specialist,
     status: result.status,

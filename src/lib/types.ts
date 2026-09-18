@@ -334,6 +334,7 @@ export interface ChatResult {
   ok: boolean;
   case_id: string;
   case_uuid: string;
+  conversation_id?: string | null;
   intent: string;
   specialist: string;
   status: string;
@@ -341,4 +342,14 @@ export interface ChatResult {
   escalation_score: number | null;
   reply: string;
   snapshot: CaseRow;
+}
+
+export interface ChatStartResult {
+  ok: boolean;
+  case_id: string;
+  case_uuid: string;
+  conversation_id?: string | null;
+  status: string;
+  resolution_status?: string | null;
+  intent?: string;
 }
