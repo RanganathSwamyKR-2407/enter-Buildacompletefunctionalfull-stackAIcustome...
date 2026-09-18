@@ -50,7 +50,7 @@ export default function Investigation() {
   const { staffRole } = useAuth();
   const queryClient = useQueryClient();
 
-  const { data: staticCase } = useQuery({
+  const { data: staticCase, isLoading: caseLoading, isError: caseError, refetch: refetchCase } = useQuery({
     queryKey: ["case", caseId],
     queryFn: () => db.case(caseId!),
     enabled: Boolean(caseId),
@@ -97,6 +97,22 @@ export default function Investigation() {
     };
   }, [cs?.case_id]);
 
+  if (caseError && !cs) {
+    return (
+      <div className="flex min-h-[320px] flex-col items-center justify-center gap-3 rounded-lg border border-danger/30 bg-danger-soft/20 p-6 text-center">
+        <TriangleAlert className="h-8 w-8 text-danger" />
+        <div className="text-sm font-semibold">Unable to load investigation data</div>
+        <div className="max-w-md text-xs text-muted-foreground">
+          The case could not be loaded. This usually means the case does not exist or you do not have access to it.
+        </div>
+        <Button size="sm" variant="outline" onClick={() => void refetchCase()}>
+          <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Retry
+        </Button>
+      </div>
+    );
+  }
+
+  if (caseLoading && !cs) return <LoadingState label="Loading case…" />;
   if (!cs) return <LoadingState label="Loading case…" />;
 
   const sla = slaRemaining(cs.sla_deadline);

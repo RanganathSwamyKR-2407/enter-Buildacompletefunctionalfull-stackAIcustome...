@@ -11,7 +11,7 @@ import type { Customer } from "@/lib/types";
 const EMPTY_FILTERS: QueueFilters = {};
 
 export default function Queue() {
-  const { data: cases, isLoading } = useCases();
+  const { data: cases, isLoading, isError, refetch } = useCases();
   const { data: customers } = useCustomers();
   const [filters, setFilters] = useState<QueueFilters>(EMPTY_FILTERS);
 
@@ -104,6 +104,14 @@ export default function Queue() {
 
       {isLoading ? (
         <SkeletonRows rows={8} />
+      ) : isError ? (
+        <div className="flex min-h-[240px] flex-col items-center justify-center gap-3 rounded-lg border border-danger/30 bg-danger-soft/20 p-6 text-center">
+          <div className="text-sm font-semibold">Unable to load the complaint queue</div>
+          <div className="max-w-md text-xs text-muted-foreground">The case data could not be retrieved. Please try again.</div>
+          <Button variant="outline" size="sm" onClick={() => void refetch()}>
+            <RotateCcw className="mr-1.5 h-3.5 w-3.5" /> Retry
+          </Button>
+        </div>
       ) : filtered.length === 0 ? (
         <EmptyState title="No matching cases" hint="Adjust the filters or reset them." />
       ) : (
