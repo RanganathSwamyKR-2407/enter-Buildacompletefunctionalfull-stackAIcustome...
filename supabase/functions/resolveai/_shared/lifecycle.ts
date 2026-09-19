@@ -836,6 +836,20 @@ export async function runLifecycle(
   };
   await updateCase(db, caseUuid, finalPatch);
 
+  // Every complaint must produce an audit trail entry regardless of outcome.
+  await emitAudit(db, caseUuid, actor, "supervisor", "investigate_case", {
+    input: { message: message.slice(0, 400) },
+    decision: { status, resolution_status: resolutionStatus, intent: routed.intent },
+    evidence: {
+      evidence_count: evidence.length,
+      sources: [...new Set(evidence.map((e) => e.source))],
+    },
+    policy: { policy_id: policyEval.policyId, allowed: policyEval.allowed },
+    authority: gates.gates.authority,
+    risk: gates.gates.risk,
+    result: { root_cause: rootCause, confidence: rootConfidence },
+  });
+
   if (status === "escalated") {
     await emitAnalytics(db, req.customerId, caseUuid, "case_escalated", {
       intent: routed.intent, score: escalationScore,

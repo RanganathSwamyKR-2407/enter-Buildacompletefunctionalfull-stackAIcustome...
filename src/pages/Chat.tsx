@@ -146,8 +146,8 @@ export default function Chat() {
           id: liveId,
           role: "assistant",
           content: started.resumed
-            ? "Continuing the investigation for this case."
-            : "Investigation started — opening live pipeline.",
+            ? `Continuing the investigation for ${started.case_id}.`
+            : `Complaint registered as ${started.case_id} — investigation started.`,
           status: started.resumed ? "CONTINUING CASE" : "INVESTIGATION IN PROGRESS",
           caseId: liveCaseId,
           caseUuid: liveUuid,

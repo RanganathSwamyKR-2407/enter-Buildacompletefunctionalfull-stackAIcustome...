@@ -2599,6 +2599,20 @@ export async function runLifecycle(
   };
   await updateCase(db, caseUuid, finalPatch);
 
+  // Every complaint must produce an audit trail entry regardless of outcome.
+  await emitAudit(db, caseUuid, actor, "supervisor", "investigate_case", {
+    input: { message: message.slice(0, 400) },
+    decision: { status, resolution_status: resolutionStatus, intent: routed.intent },
+    evidence: {
+      evidence_count: evidence.length,
+      sources: [...new Set(evidence.map((e) => e.source))],
+    },
+    policy: { policy_id: policyEval.policyId, allowed: policyEval.allowed },
+    authority: gates.gates.authority,
+    risk: gates.gates.risk,
+    result: { root_cause: rootCause, confidence: rootConfidence },
+  });
+
   if (status === "escalated") {
     await emitAnalytics(db, req.customerId, caseUuid, "case_escalated", {
       intent: routed.intent, score: escalationScore,
@@ -3031,8 +3045,13 @@ async function handleChat(token: string | null, body: Record<string, unknown>): 
   }
 
   // Complaint. Decide: resume the active case or create a new one.
+  // Only resume when the active case matches this complaint's intent
+  // (or the case has no intent recorded) — never merge unrelated issues.
   const shouldStart = body.start_only === true || !body.case_uuid;
-  const useExisting = Boolean(activeCase) && shouldStart;
+  const sameIntent =
+    activeCase != null &&
+    (activeCase.intent == null || activeCase.intent === det.intent);
+  const useExisting = sameIntent && shouldStart;
   const result = await runLifecycle(db, {
     customerId,
     message,

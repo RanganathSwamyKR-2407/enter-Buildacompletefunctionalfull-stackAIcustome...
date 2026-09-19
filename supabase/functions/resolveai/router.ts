@@ -147,8 +147,13 @@ async function handleChat(token: string | null, body: Record<string, unknown>): 
   }
 
   // Complaint. Decide: resume the active case or create a new one.
+  // Only resume when the active case matches this complaint's intent
+  // (or the case has no intent recorded) — never merge unrelated issues.
   const shouldStart = body.start_only === true || !body.case_uuid;
-  const useExisting = Boolean(activeCase) && shouldStart;
+  const sameIntent =
+    activeCase != null &&
+    (activeCase.intent == null || activeCase.intent === det.intent);
+  const useExisting = sameIntent && shouldStart;
   const result = await runLifecycle(db, {
     customerId,
     message,
