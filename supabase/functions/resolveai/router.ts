@@ -147,13 +147,21 @@ async function handleChat(token: string | null, body: Record<string, unknown>): 
   }
 
   // Complaint. Decide: resume the active case or create a new one.
-  // Only resume when the active case matches this complaint's intent
-  // (or the case has no intent recorded) — never merge unrelated issues.
+  // A clearly NEW complaint (strong keyword signal or an explicit complaint
+  // phrase) creates a separate case; vague follow-ups and context messages
+  // ("It was for order ORD-1024") attach to the active case.
+  const STRONG_COMPLAINT = [
+    /courier says delivered/i, /never received/i, /not received/i,
+    /charged twice/i, /deducted twice/i, /billed twice/i,
+    /double (charge|debit|deduction)/i, /refund is (still )?(pending|failing)/i,
+    /keeps failing/i, /never got (my|the)/i, /hasn.?t arrived/i,
+    /order failed/i, /payment (succeeded|failed) but/i, /wish to report/i,
+    /i want to report/i, /wrong (item|size|product)/i, /damaged/i, /broken/i,
+  ];
   const shouldStart = body.start_only === true || !body.case_uuid;
-  const sameIntent =
-    activeCase != null &&
-    (activeCase.intent == null || activeCase.intent === det.intent);
-  const useExisting = sameIntent && shouldStart;
+  const isDistinctComplaint =
+    det.intentScore >= 2 || STRONG_COMPLAINT.some((re) => re.test(message));
+  const useExisting = Boolean(activeCase) && shouldStart && !isDistinctComplaint;
   const result = await runLifecycle(db, {
     customerId,
     message,
