@@ -22,6 +22,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Home,
+  LayoutDashboard,
 } from "lucide-react";
 import { useAuth, signOut } from "@/context/AuthContext";
 import { Badge } from "@/components/ui/badge";
