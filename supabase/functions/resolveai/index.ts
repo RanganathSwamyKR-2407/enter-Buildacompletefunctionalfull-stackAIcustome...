@@ -244,6 +244,16 @@ export async function executeSendMessage(
       error: "conversation_missing",
     };
   }
+  // Idempotency: never re-insert an identical AI message into the same
+  // conversation (repeated runs / self-checks must not bloat the transcript).
+  if (await messageAlreadyExists(db, ctx.conversationUuid, "ai", ctx.content)) {
+    return {
+      action: "send_message",
+      status: "succeeded",
+      detail: "Message already sent (deduplicated)",
+      output: { sent: true, deduplicated: true },
+    };
+  }
   const { error } = await db.from("resolveai_messages").insert({
     conversation_id: ctx.conversationUuid,
     role: "ai",
@@ -1678,6 +1688,32 @@ export async function updateCase(
   await db.from("resolveai_cases").update(patch).eq("id", caseUuid);
 }
 
+/** Escape a LIKE pattern so customer text is matched literally. */
+function likeEscape(value: string): string {
+  return value.replace(/[\\%_]/g, (c) => `\\${c}`);
+}
+
+/** True when the conversation already contains a message with the same
+ * role + content (case-insensitive, trimmed). Guards the transcript against
+ * duplicate rows from repeated runs / retries / self-checks so a customer's
+ * chat never repeats text. */
+export async function messageAlreadyExists(
+  db: SupabaseClient,
+  convoUuid: string | null,
+  role: string,
+  content: string,
+): Promise<boolean> {
+  const text = (content ?? "").trim();
+  if (!convoUuid || !text) return false;
+  const { data } = await db
+    .from("resolveai_messages")
+    .select("id")
+    .eq("conversation_id", convoUuid)
+    .eq("role", role)
+    .ilike("content", likeEscape(text));
+  return (data ?? []).length > 0;
+}
+
 export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // --- _shared/incidents.ts ---
@@ -1895,11 +1931,13 @@ export async function runLifecycle(
     // Resuming an active case with a new message: persist this turn's
     // message too (started via earlyReturn), but not on plain "continue".
     if (req.earlyReturn && convoUuid) {
-      await db.from("resolveai_messages").insert({
-        conversation_id: convoUuid,
-        role: "customer",
-        content: message,
-      });
+      if (!(await messageAlreadyExists(db, convoUuid, "customer", message))) {
+        await db.from("resolveai_messages").insert({
+          conversation_id: convoUuid,
+          role: "customer",
+          content: message,
+        });
+      }
       await db.from("resolveai_cases").update({ message_text: message }).eq("id", caseUuid);
     }
   } else {
@@ -1911,11 +1949,13 @@ export async function runLifecycle(
         .single();
       convoUuid = (newConvo as { id: string }).id;
     }
-    await db.from("resolveai_messages").insert({
-      conversation_id: convoUuid,
-      role: "customer",
-      content: message,
-    });
+    if (!(await messageAlreadyExists(db, convoUuid, "customer", message))) {
+      await db.from("resolveai_messages").insert({
+        conversation_id: convoUuid,
+        role: "customer",
+        content: message,
+      });
+    }
     caseId = await nextCaseId(db);
     caseUuid = crypto.randomUUID();
     await db.from("resolveai_cases").insert({
@@ -3030,10 +3070,21 @@ async function handleChat(token: string | null, body: Record<string, unknown>): 
       det.intentScore === 0
         ? "Hi! I'm the ResolveAI support assistant. If you're reporting an issue with an order, payment, delivery or your account, describe it and I'll investigate it right away."
         : "I can help with that. If this is about a specific order, payment or delivery, tell me a little more and I'll investigate the records and take the appropriate action.";
-    await db.from("resolveai_messages").insert([
-      { conversation_id: convoId, role: "customer", content: message },
-      { conversation_id: convoId, role: "ai", content: reply },
-    ]);
+    // Persist the turn, skipping rows whose exact role+content already
+    // exists (repeated "Hi" / retries must not repeat in the transcript).
+    const customerExists = await messageAlreadyExists(db, convoId, "customer", message);
+    const replyExists = await messageAlreadyExists(db, convoId, "ai", reply);
+    if (!customerExists && !replyExists) {
+      await db.from("resolveai_messages").insert([
+        { conversation_id: convoId, role: "customer", content: message },
+        { conversation_id: convoId, role: "ai", content: reply },
+      ]);
+    } else if (!customerExists || !replyExists) {
+      const rows = [];
+      if (!customerExists) rows.push({ conversation_id: convoId, role: "customer", content: message });
+      if (!replyExists) rows.push({ conversation_id: convoId, role: "ai", content: reply });
+      await db.from("resolveai_messages").insert(rows);
+    }
     return jsonResponse({
       ok: true,
       kind: "reply",

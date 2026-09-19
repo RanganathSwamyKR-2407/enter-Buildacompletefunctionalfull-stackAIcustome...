@@ -34,7 +34,7 @@ import {
   recordAgentAction,
   recordVerification,
 } from "./_shared/actions.ts";
-import { emitAudit, emitAnalytics, updateCase } from "./_shared/events.ts";
+import { emitAudit, emitAnalytics, updateCase, messageAlreadyExists } from "./_shared/events.ts";
 
 const BOOT_SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const BOOT_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
@@ -132,10 +132,21 @@ async function handleChat(token: string | null, body: Record<string, unknown>): 
       det.intentScore === 0
         ? "Hi! I'm the ResolveAI support assistant. If you're reporting an issue with an order, payment, delivery or your account, describe it and I'll investigate it right away."
         : "I can help with that. If this is about a specific order, payment or delivery, tell me a little more and I'll investigate the records and take the appropriate action.";
-    await db.from("resolveai_messages").insert([
-      { conversation_id: convoId, role: "customer", content: message },
-      { conversation_id: convoId, role: "ai", content: reply },
-    ]);
+    // Persist the turn, skipping rows whose exact role+content already
+    // exists (repeated "Hi" / retries must not repeat in the transcript).
+    const customerExists = await messageAlreadyExists(db, convoId, "customer", message);
+    const replyExists = await messageAlreadyExists(db, convoId, "ai", reply);
+    if (!customerExists && !replyExists) {
+      await db.from("resolveai_messages").insert([
+        { conversation_id: convoId, role: "customer", content: message },
+        { conversation_id: convoId, role: "ai", content: reply },
+      ]);
+    } else if (!customerExists || !replyExists) {
+      const rows = [];
+      if (!customerExists) rows.push({ conversation_id: convoId, role: "customer", content: message });
+      if (!replyExists) rows.push({ conversation_id: convoId, role: "ai", content: reply });
+      await db.from("resolveai_messages").insert(rows);
+    }
     return jsonResponse({
       ok: true,
       kind: "reply",

@@ -1,0 +1,1 @@
+DELETE FROM resolveai_messages WHERE id IN (SELECT id FROM (SELECT id, row_number() OVER (PARTITION BY conversation_id, role, lower(btrim(content)) ORDER BY created_at ASC, id ASC) AS rn FROM resolveai_messages) t WHERE t.rn > 1);

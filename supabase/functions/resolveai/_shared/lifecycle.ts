@@ -15,6 +15,7 @@ import {
   emitAnalytics,
   updateCase,
   sleep,
+  messageAlreadyExists,
 } from "./events.ts";
 import {
   executeRefund,
@@ -132,11 +133,13 @@ export async function runLifecycle(
     // Resuming an active case with a new message: persist this turn's
     // message too (started via earlyReturn), but not on plain "continue".
     if (req.earlyReturn && convoUuid) {
-      await db.from("resolveai_messages").insert({
-        conversation_id: convoUuid,
-        role: "customer",
-        content: message,
-      });
+      if (!(await messageAlreadyExists(db, convoUuid, "customer", message))) {
+        await db.from("resolveai_messages").insert({
+          conversation_id: convoUuid,
+          role: "customer",
+          content: message,
+        });
+      }
       await db.from("resolveai_cases").update({ message_text: message }).eq("id", caseUuid);
     }
   } else {
@@ -148,11 +151,13 @@ export async function runLifecycle(
         .single();
       convoUuid = (newConvo as { id: string }).id;
     }
-    await db.from("resolveai_messages").insert({
-      conversation_id: convoUuid,
-      role: "customer",
-      content: message,
-    });
+    if (!(await messageAlreadyExists(db, convoUuid, "customer", message))) {
+      await db.from("resolveai_messages").insert({
+        conversation_id: convoUuid,
+        role: "customer",
+        content: message,
+      });
+    }
     caseId = await nextCaseId(db);
     caseUuid = crypto.randomUUID();
     await db.from("resolveai_cases").insert({

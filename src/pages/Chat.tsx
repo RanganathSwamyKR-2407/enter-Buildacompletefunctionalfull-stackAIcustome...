@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -18,6 +18,34 @@ const SUGGESTIONS = [
   "My order is delayed and I have not received any update.",
 ];
 
+// Transcripts must never repeat text: repeated self-check runs, retries and
+// test harnesses insert the same message many times into one conversation.
+function transcriptKey(b: { role: string; content: string }): string {
+  return `${b.role}|${(b.content ?? "").trim().toLowerCase()}`;
+}
+
+// Drop repeat occurrences of the same role+text (keeps the first).
+function dedupeTranscript<T extends { role: string; content: string }>(list: T[]): T[] {
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const b of list) {
+    const key = transcriptKey(b);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(b);
+  }
+  return out;
+}
+
+// Session bubbles are appended after the persisted history; when a session
+// copy duplicates history text, the newest copy wins (it carries the case
+// link). This keeps the merge duplicate-free while preserving order.
+function mergeDeduped<T extends { role: string; content: string }>(history: T[], session: T[]): T[] {
+  const last = new Map<string, T>();
+  for (const b of [...history, ...session]) last.set(transcriptKey(b), b);
+  return Array.from(last.values());
+}
+
 export default function Chat() {
   const { customerId, staffRole } = useAuth();
   const [customerIdState, setCustomerId] = useState<string | null>(customerId);
@@ -32,6 +60,30 @@ export default function Chat() {
     sentAt: number;
   } | null>(null);
   const [pollUntil, setPollUntil] = useState(0);
+
+  const queryClient = useQueryClient();
+
+  // Complete a live (optimistic) bubble once the final reply is known, then
+  // refresh the persisted conversation so history stays in sync.
+  const completeLiveBubble = useCallback(
+    (target: { liveId: string; caseId: string; caseUuid: string }, content: string) => {
+      setBubbles((prev) => [
+        ...prev.filter((b) => b.id !== target.liveId),
+        {
+          id: `a-${Date.now()}`,
+          role: "assistant",
+          content,
+          status: "COMPLETED",
+          caseId: target.caseId,
+          caseUuid: target.caseUuid,
+          investigationLink: target.caseUuid ? `/investigations/${target.caseUuid}` : undefined,
+        },
+      ]);
+      setPollTarget(null);
+      void queryClient.invalidateQueries({ queryKey: ["chat-messages", customerIdState] });
+    },
+    [queryClient, customerIdState],
+  );
 
   // Poll the persisted conversation until the AI reply for the current
   // complaint arrives (the pipeline may complete even if the browser
@@ -59,23 +111,36 @@ export default function Chat() {
       ).pop();
       if (reply) {
         clearInterval(timer);
-        setBubbles((prev) => [
-          ...prev.filter((b) => b.id !== pollTarget.liveId),
-          {
-            id: `a-${Date.now()}`,
-            role: "assistant",
-            content: reply.content,
-            status: "COMPLETED",
-            caseId: pollTarget.caseId,
-            caseUuid: pollTarget.caseUuid,
-            investigationLink: pollTarget.caseUuid ? `/investigations/${pollTarget.caseUuid}` : undefined,
-          },
-        ]);
-        setPollTarget(null);
+        completeLiveBubble(pollTarget, reply.content);
+        return;
+      }
+      // The final reply may have been deduplicated server-side (identical
+      // text already in the conversation). Once the case is finished,
+      // surface the conversation's latest AI message instead so the live
+      // bubble never hangs.
+      const { data: cs } = await supabase
+        .from("resolveai_cases")
+        .select("status")
+        .eq("id", pollTarget.caseUuid)
+        .maybeSingle();
+      const status = cs ? (cs as { status: string }).status : null;
+      if (status && ["resolved", "escalated", "closed", "automation_paused"].includes(status)) {
+        const { data: msgs } = await supabase
+          .from("resolveai_messages")
+          .select("content")
+          .eq("conversation_id", pollTarget.conversationId)
+          .eq("role", "ai")
+          .order("created_at", { ascending: false })
+          .limit(1);
+        const lastAi = (msgs ?? [] as { content: string }[])[0];
+        if (lastAi && lastAi.content) {
+          clearInterval(timer);
+          completeLiveBubble(pollTarget, lastAi.content);
+        }
       }
     }, 4000);
     return () => clearInterval(timer);
-  }, [pollTarget, pollUntil]);
+  }, [pollTarget, pollUntil, completeLiveBubble]);
 
   useEffect(() => {
     setCustomerId(customerId);
@@ -158,12 +223,21 @@ export default function Chat() {
 
   const initialBubbles = useMemo<ChatBubble[]>(() => {
     if (!messages || messages.length === 0) return [];
-    return messages.map((m) => ({
-      id: m.id,
-      role: m.role === "customer" ? "user" : "assistant",
-      content: m.content,
-    }));
+    return dedupeTranscript(
+      messages.map((m) => ({
+        id: m.id,
+        role: m.role === "customer" ? "user" : "assistant",
+        content: m.content,
+      })),
+    );
   }, [messages]);
+
+  // Displayed transcript = persisted history overlaid with this session's
+  // bubbles, deduplicated so a text never renders more than once.
+  const displayBubbles = useMemo<ChatBubble[]>(
+    () => (bubbles.length > 0 ? mergeDeduped(initialBubbles, bubbles) : initialBubbles),
+    [bubbles, initialBubbles],
+  );
 
   const send = async (text: string) => {
     setSending(true);
@@ -180,12 +254,13 @@ export default function Chat() {
             id: `a-${Date.now()}`,
             role: "assistant",
             content: started.reply ?? "How can I help?",
-            status: started.case_id ? undefined : undefined,
             caseId: started.case_id || undefined,
             caseUuid: started.case_uuid || undefined,
             investigationLink: started.case_uuid ? `/investigations/${started.case_uuid}` : undefined,
           },
         ]);
+        // The backend persisted this turn — refresh history.
+        void queryClient.invalidateQueries({ queryKey: ["chat-messages", customerIdState] });
         return;
       }
 
@@ -263,6 +338,7 @@ export default function Chat() {
                   onChange={(e) => {
                     setCustomerId(e.target.value);
                     setBubbles([]);
+                    setPollTarget(null);
                   }}
                   className="mt-1 w-full rounded-md border bg-background px-2 py-1.5 text-[13px]"
                 >
@@ -366,7 +442,7 @@ export default function Chat() {
               </div>
             )}
             <ChatWindow
-              bubbles={bubbles.length > 0 ? bubbles : initialBubbles}
+              bubbles={displayBubbles}
               sending={sending}
               onSend={send}
               disabled={!customerIdState}

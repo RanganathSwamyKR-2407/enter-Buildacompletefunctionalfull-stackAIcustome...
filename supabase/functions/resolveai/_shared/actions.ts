@@ -8,6 +8,7 @@
 // =====================================================================
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
 import type { ActionResult, VerificationResult } from "./engine/types.ts";
+import { messageAlreadyExists } from "./events.ts";
 
 export async function nextRefundId(db: SupabaseClient): Promise<string> {
   const { data } = await db
@@ -238,6 +239,16 @@ export async function executeSendMessage(
       detail: "No conversation attached to case",
       output: {},
       error: "conversation_missing",
+    };
+  }
+  // Idempotency: never re-insert an identical AI message into the same
+  // conversation (repeated runs / self-checks must not bloat the transcript).
+  if (await messageAlreadyExists(db, ctx.conversationUuid, "ai", ctx.content)) {
+    return {
+      action: "send_message",
+      status: "succeeded",
+      detail: "Message already sent (deduplicated)",
+      output: { sent: true, deduplicated: true },
     };
   }
   const { error } = await db.from("resolveai_messages").insert({
