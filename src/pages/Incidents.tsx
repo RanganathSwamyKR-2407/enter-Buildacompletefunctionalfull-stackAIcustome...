@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useIncidents } from "@/hooks/useData";
 import { useCases } from "@/hooks/useData";
-import { PageHeader, SkeletonRows, LoadingState } from "@/components/widgets";
+import { PageHeader, TableSkeleton, LoadingState } from "@/components/widgets";
 import { IncidentPanel } from "@/components/incident-panel";
 import { TrendsPanel, ImpactPanel } from "@/components/knowledge-panels";
 import { Link } from "react-router-dom";
@@ -31,7 +31,7 @@ export default function Incidents() {
     },
   });
 
-  if (isLoading) return <SkeletonRows rows={5} />;
+  if (isLoading) return <TableSkeleton rows={5} />;
 
   const incidentCases = (incidentUuid: string | undefined) => {
     if (!incidentUuid) return [];

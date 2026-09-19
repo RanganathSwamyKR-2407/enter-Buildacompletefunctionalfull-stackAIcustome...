@@ -80,11 +80,55 @@ export function SkeletonRows({ rows = 6 }: { rows?: number }) {
   );
 }
 
-export function EmptyState({ title, hint }: { title: string; hint?: string }) {
+/** Table-shaped skeleton loader: header bar + evenly spaced rows. */
+export function TableSkeleton({ rows = 6, cols = 5 }: { rows?: number; cols?: number }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-1 rounded-md border border-dashed py-10 text-center">
+    <div className="overflow-hidden rounded-lg border">
+      <div className="flex gap-4 border-b bg-muted/40 px-4 py-3">
+        {Array.from({ length: cols }).map((_, i) => (
+          <Skeleton key={i} className="h-3 w-24" />
+        ))}
+      </div>
+      {Array.from({ length: rows }).map((_, r) => (
+        <div key={r} className="flex gap-4 border-b px-4 py-3.5 last:border-0">
+          {Array.from({ length: cols }).map((_, c) => (
+            <Skeleton key={c} className={c === 0 ? "h-3.5 w-28" : "h-3.5 flex-1"} />
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Card-grid skeleton loader for dashboards/KPI surfaces. */
+export function CardGridSkeleton({ cards = 4 }: { cards?: number }) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      {Array.from({ length: cards }).map((_, i) => (
+        <div key={i} className="rounded-xl border bg-card p-4 shadow-card">
+          <Skeleton className="h-3 w-20" />
+          <Skeleton className="mt-3 h-6 w-24" />
+          <Skeleton className="mt-2 h-3 w-32" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function EmptyState({
+  title,
+  hint,
+  icon,
+}: {
+  title: string;
+  hint?: string;
+  icon?: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed bg-card/40 py-10 text-center">
+      {icon && <div className="text-muted-foreground/60">{icon}</div>}
       <div className="text-sm font-medium text-muted-foreground">{title}</div>
-      {hint && <div className="text-xs text-muted-foreground/70">{hint}</div>}
+      {hint && <div className="max-w-sm text-xs text-muted-foreground/70">{hint}</div>}
     </div>
   );
 }

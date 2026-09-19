@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { PageHeader, SkeletonRows } from "@/components/widgets";
+import { PageHeader, TableSkeleton } from "@/components/widgets";
 import { AuditTimeline } from "@/components/audit-timeline";
 import { Link } from "react-router-dom";
 import type { AuditLog } from "@/lib/types";
@@ -14,7 +14,7 @@ export default function Audit() {
     },
   });
 
-  if (isLoading) return <SkeletonRows rows={6} />;
+  if (isLoading) return <TableSkeleton rows={6} />;
 
   return (
     <div>

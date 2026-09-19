@@ -2,7 +2,7 @@ import { useState } from "react";
 import { usePolicies, useAgents } from "@/hooks/useData";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { PageHeader, SkeletonRows } from "@/components/widgets";
+import { PageHeader, TableSkeleton } from "@/components/widgets";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -27,7 +27,7 @@ export default function Policies() {
     await qc.invalidateQueries({ queryKey: ["knowledge-candidates"] });
   };
 
-  if (isLoading) return <SkeletonRows rows={5} />;
+  if (isLoading) return <TableSkeleton rows={5} />;
 
   return (
     <div>

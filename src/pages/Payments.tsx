@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { usePayments, useRefunds } from "@/hooks/useData";
-import { PageHeader, SkeletonRows } from "@/components/widgets";
+import { PageHeader, TableSkeleton } from "@/components/widgets";
 import { Badge } from "@/components/ui/badge";
 import { inr, fmtDate } from "@/lib/format";
 import type { Payment } from "@/lib/types";
@@ -37,7 +37,7 @@ export default function Payments() {
     },
   });
 
-  if (isLoading) return <SkeletonRows rows={8} />;
+  if (isLoading) return <TableSkeleton rows={8} />;
 
   return (
     <div>

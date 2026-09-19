@@ -1,6 +1,6 @@
 import { useAnalytics } from "@/hooks/useData";
 import { AnalyticsCards } from "@/components/analytics-cards";
-import { PageHeader, SkeletonRows } from "@/components/widgets";
+import { PageHeader, TableSkeleton } from "@/components/widgets";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   BarChart,
@@ -18,7 +18,7 @@ const COLORS = ["#6366f1", "#22c55e", "#f59e0b", "#ef4444"];
 export default function Analytics() {
   const { data, isLoading } = useAnalytics();
 
-  if (isLoading) return <SkeletonRows rows={6} />;
+  if (isLoading) return <TableSkeleton rows={6} />;
   const a = (data?.analytics ?? {}) as AnalyticsSnapshot;
 
   const topIntents = (a.complaints?.top_intents ?? []).map((x) => ({ name: x.intent, count: x.cnt }));

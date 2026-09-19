@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useCustomers, useCases } from "@/hooks/useData";
 import { CaseTable, filterCases, type QueueFilters } from "@/components/case-table";
-import { PageHeader, SkeletonRows, EmptyState } from "@/components/widgets";
+import { PageHeader, TableSkeleton, EmptyState } from "@/components/widgets";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -103,7 +103,7 @@ export default function Queue() {
       </div>
 
       {isLoading ? (
-        <SkeletonRows rows={8} />
+        <TableSkeleton rows={8} />
       ) : isError ? (
         <div className="flex min-h-[240px] flex-col items-center justify-center gap-3 rounded-lg border border-danger/30 bg-danger-soft/20 p-6 text-center">
           <div className="text-sm font-semibold">Unable to load the complaint queue</div>

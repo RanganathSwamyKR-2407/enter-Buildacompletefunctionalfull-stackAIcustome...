@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrders } from "@/hooks/useData";
-import { PageHeader, SkeletonRows, EmptyState } from "@/components/widgets";
+import { PageHeader, TableSkeleton, EmptyState } from "@/components/widgets";
 import { Badge } from "@/components/ui/badge";
 import { inr, fmtDate } from "@/lib/format";
 import { MapPin, Package } from "lucide-react";
@@ -31,7 +31,7 @@ export default function Orders() {
     },
   });
 
-  if (isLoading) return <SkeletonRows rows={8} />;
+  if (isLoading) return <TableSkeleton rows={8} />;
 
   return (
     <div>

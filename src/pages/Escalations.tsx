@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { useEscalations } from "@/hooks/useData";
-import { PageHeader, SkeletonRows } from "@/components/widgets";
+import { PageHeader, TableSkeleton } from "@/components/widgets";
 import { EscalationPanel, ResolutionPassport } from "@/components/passport";
 import { EscalationBadge, PriorityBadge } from "@/components/badges";
 import { Card, CardContent } from "@/components/ui/card";
@@ -10,7 +10,7 @@ import { timeAgo } from "@/lib/format";
 export default function Escalations() {
   const { data: escalations, isLoading } = useEscalations();
 
-  if (isLoading) return <SkeletonRows rows={5} />;
+  if (isLoading) return <TableSkeleton rows={5} />;
 
   return (
     <div>

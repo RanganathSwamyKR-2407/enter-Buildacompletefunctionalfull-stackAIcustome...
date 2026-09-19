@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useCases } from "@/hooks/useData";
 import { useCustomers } from "@/hooks/useData";
-import { PageHeader, SkeletonRows, EmptyState } from "@/components/widgets";
+import { PageHeader, TableSkeleton, EmptyState } from "@/components/widgets";
 import { Button } from "@/components/ui/button";
 import { StatusBadge, PriorityBadge, IntentBadge, SentimentIndicator } from "@/components/badges";
 import { Activity, ArrowRight } from "lucide-react";
@@ -74,7 +74,7 @@ export default function Investigations() {
       />
 
       {isLoading ? (
-        <SkeletonRows rows={6} />
+        <TableSkeleton rows={6} />
       ) : (cases ?? []).length === 0 ? (
         <EmptyState title="No cases yet" hint="Send a complaint from Customer Chat to start an investigation." />
       ) : (

@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCustomers } from "@/hooks/useData";
 import { Customer360 } from "@/components/customer-360";
 import { CustomerJourney, EffortScore } from "@/components/customer-panels";
-import { PageHeader, SkeletonRows } from "@/components/widgets";
+import { PageHeader, SkeletonRows, TableSkeleton } from "@/components/widgets";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -26,7 +26,7 @@ export default function Customers() {
       <PageHeader title="Customers" subtitle="360° view of profiles, history and risk signals." />
       <Input placeholder="Search customers…" value={q} onChange={(e) => setQ(e.target.value)} className="mb-4 max-w-sm" />
       {isLoading ? (
-        <SkeletonRows rows={8} />
+        <TableSkeleton rows={8} />
       ) : (
         <>
           <div className="overflow-x-auto rounded-md border">
