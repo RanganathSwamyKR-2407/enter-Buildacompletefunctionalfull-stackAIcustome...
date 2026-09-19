@@ -182,7 +182,7 @@ export default function Chat() {
   return (
     <div className="h-full">
       <PageHeader
-        title="Customer Chat"
+        kicker="Customer Operations" title="Customer Chat"
         subtitle="Every message is processed by the autonomous engine — no canned replies."
       />
       <div className="grid h-[calc(100vh-8.5rem)] min-h-[520px] gap-4 lg:grid-cols-[300px_1fr]">

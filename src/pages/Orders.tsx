@@ -35,7 +35,7 @@ export default function Orders() {
 
   return (
     <div>
-      <PageHeader title="Orders & Shipments" subtitle={`${(orders ?? []).length} orders across the customer base.`} />
+      <PageHeader kicker="Customer Operations" title="Orders & Shipments" subtitle={`${(orders ?? []).length} orders across the customer base.`} />
       {(orders ?? []).length === 0 ? (
         <EmptyState title="No orders" />
       ) : (

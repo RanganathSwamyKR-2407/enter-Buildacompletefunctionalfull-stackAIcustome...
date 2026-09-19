@@ -6,17 +6,26 @@ import { Skeleton } from "@/components/ui/skeleton";
 export function PageHeader({
   title,
   subtitle,
+  kicker,
   actions,
 }: {
   title: string;
   subtitle?: string;
+  kicker?: string;
   actions?: ReactNode;
 }) {
   return (
-    <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
-        {subtitle && <p className="mt-0.5 text-sm text-muted-foreground">{subtitle}</p>}
+    <div className="mb-6 flex flex-wrap items-end justify-between gap-3 border-b border-border/60 pb-4 animate-fade-in">
+      <div className="max-w-3xl">
+        {kicker && (
+          <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            {kicker}
+          </div>
+        )}
+        <h1 className="font-display text-[26px] font-medium leading-tight tracking-tight text-foreground md:text-[30px]">
+          {title}
+        </h1>
+        {subtitle && <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{subtitle}</p>}
       </div>
       {actions && <div className="flex items-center gap-2">{actions}</div>}
     </div>

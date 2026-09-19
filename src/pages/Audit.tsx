@@ -19,7 +19,7 @@ export default function Audit() {
   return (
     <div>
       <PageHeader
-        title="Audit Trail"
+        kicker="Human Oversight" title="Audit Trail"
         subtitle="Every important operation is recorded: actor, agent, decision, gates, result, verification."
       />
       <AuditTimeline logs={logs ?? []} limit={60} />

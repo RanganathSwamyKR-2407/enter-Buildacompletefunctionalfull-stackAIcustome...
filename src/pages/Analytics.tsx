@@ -30,7 +30,7 @@ export default function Analytics() {
   return (
     <div>
       <PageHeader
-        title="Operational Analytics"
+        kicker="Intelligence" title="Operational Analytics"
         subtitle="All values computed from live database state — no static numbers."
       />
       <AnalyticsCards a={a} />

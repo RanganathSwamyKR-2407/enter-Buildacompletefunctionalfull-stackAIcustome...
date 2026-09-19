@@ -29,7 +29,7 @@ export default function Queue() {
   return (
     <div>
       <PageHeader
-        title="Complaint Queue"
+        kicker="Operations" title="Complaint Queue"
         subtitle={`${filtered.length} cases match · ${(cases ?? []).length} total`}
       />
 

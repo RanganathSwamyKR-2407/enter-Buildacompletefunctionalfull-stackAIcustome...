@@ -15,7 +15,7 @@ export default function Escalations() {
   return (
     <div>
       <PageHeader
-        title="Escalations"
+        kicker="Human Oversight" title="Escalations"
         subtitle="Cases handed to humans with a complete Resolution Passport — no restarting the investigation."
       />
       <div className="space-y-3">

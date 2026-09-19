@@ -69,7 +69,7 @@ export default function Investigations() {
   return (
     <div>
       <PageHeader
-        title="Live Investigations"
+        kicker="Operations" title="Live Investigations"
         subtitle="Open a case to watch its live investigation, evidence, gates and resolution stream in real time."
       />
 

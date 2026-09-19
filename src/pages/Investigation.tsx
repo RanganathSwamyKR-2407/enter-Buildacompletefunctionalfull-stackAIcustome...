@@ -156,7 +156,7 @@ export default function Investigation() {
       {/* Case header */}
       <div className={classNames("rounded-lg border p-4", cs.contradiction_detected ? "border-danger/50 bg-danger-soft/20" : "border")}>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-lg font-semibold">{cs.case_id}</span>
+          <span className="font-display text-xl font-medium tracking-tight">{cs.case_id}</span>
           <StatusBadge status={cs.status} />
           <PriorityBadge priority={cs.priority} />
           <IntentBadge intent={cs.intent} />

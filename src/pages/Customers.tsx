@@ -23,7 +23,7 @@ export default function Customers() {
 
   return (
     <div>
-      <PageHeader title="Customers" subtitle="360° view of profiles, history and risk signals." />
+      <PageHeader kicker="Customer Operations" title="Customers" subtitle="360° view of profiles, history and risk signals." />
       <Input placeholder="Search customers…" value={q} onChange={(e) => setQ(e.target.value)} className="mb-4 max-w-sm" />
       {isLoading ? (
         <TableSkeleton rows={8} />

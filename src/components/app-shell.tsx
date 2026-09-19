@@ -148,7 +148,7 @@ export function AppShell() {
           </span>
           {!collapsed && (
             <>
-              <span className="text-sm font-semibold tracking-tight">ResolveAI</span>
+              <span className="font-display text-[15px] font-medium tracking-tight">ResolveAI</span>
               <span className="ml-1 rounded bg-brand-soft px-1.5 py-0.5 text-[10px] font-medium text-brand">
                 {isCustomer ? "CUSTOMER" : "OPS"}
               </span>

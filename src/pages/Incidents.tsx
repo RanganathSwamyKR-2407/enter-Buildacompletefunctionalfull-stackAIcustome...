@@ -45,7 +45,7 @@ export default function Incidents() {
   return (
     <div>
       <PageHeader
-        title="Incident Detection"
+        kicker="Intelligence" title="Incident Detection"
         subtitle="Recurring failure fingerprints that cross the incident threshold are surfaced here automatically."
       />
       <IncidentPanel incidents={(data?.incidents ?? []) as Incident[]} fingerprints={data?.fingerprints ?? []} />

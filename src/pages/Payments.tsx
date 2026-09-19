@@ -42,7 +42,7 @@ export default function Payments() {
   return (
     <div>
       <PageHeader
-        title="Payments & Refunds"
+        kicker="Customer Operations" title="Payments & Refunds"
         subtitle="Transactions with refund state. Refund actions are gated by the Four-Gate Controller."
       />
       <div className="overflow-x-auto rounded-md border">

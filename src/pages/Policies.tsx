@@ -32,7 +32,7 @@ export default function Policies() {
   return (
     <div>
       <PageHeader
-        title="Policy Engine"
+        kicker="Intelligence" title="Policy Engine"
         subtitle="Deterministic rules the action engine must consult before executing anything. The LLM never invents policy."
       />
       <div className="mb-4 flex items-center gap-2 rounded-md border bg-brand-soft/40 px-3 py-2 text-xs text-muted-foreground">

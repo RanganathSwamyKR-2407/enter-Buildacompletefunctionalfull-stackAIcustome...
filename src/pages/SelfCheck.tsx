@@ -29,7 +29,7 @@ export default function SelfCheck() {
   return (
     <div>
       <PageHeader
-        title="Demo Self-Check & System Health"
+        kicker="Human Oversight" title="Demo Self-Check & System Health"
         subtitle="Runs the three end-to-end demo tracks against real seeded data and asserts their final state."
         actions={
           <Button onClick={() => void run()} disabled={running}>

@@ -10,7 +10,7 @@ export default function SystemHealthPage() {
   return (
     <div>
       <PageHeader
-        title="System Health"
+        kicker="Human Oversight" title="System Health"
         subtitle="Read-only diagnostics across the ResolveAI infrastructure — database, authentication, AI, RAG, actions, verification, realtime, analytics and audit."
         actions={
           <span className="flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
