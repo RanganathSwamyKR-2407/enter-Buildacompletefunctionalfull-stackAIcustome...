@@ -2,6 +2,7 @@ import { Navigate } from "react-router-dom";
 import { AppShell } from "@/components/app-shell";
 import { useAuth } from "@/context/AuthContext";
 import Login from "@/pages/Login";
+import Dashboard from "@/pages/Dashboard";
 import ResetPassword from "@/pages/ResetPassword";
 import Chat from "@/pages/Chat";
 import Queue from "@/pages/Queue";
@@ -36,8 +37,8 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 function HomeRedirect() {
   const { staffRole, customerId, loading } = useAuth();
   if (loading) return null;
-  // Customers land on their chat; staff land on the operations queue.
-  return <Navigate to={staffRole ? "/queue" : customerId ? "/chat" : "/login"} replace />;
+  // Staff land on the editorial command center; customers on their chat.
+  return <Navigate to={staffRole ? "/dashboard" : customerId ? "/chat" : "/login"} replace />;
 }
 
 export const routers = [
@@ -58,6 +59,7 @@ export const routers = [
     ),
     children: [
       { index: true, element: <HomeRedirect /> },
+      { path: "dashboard", element: <Dashboard /> },
       { path: "chat", element: <Chat /> },
       { path: "queue", element: <Queue /> },
       { path: "investigations", element: <Investigations /> },

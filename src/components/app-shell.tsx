@@ -35,6 +35,7 @@ const NAV = [
   {
     group: "Operations",
     items: [
+      { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
       { to: "/queue", label: "Complaint Queue", icon: Inbox },
       { to: "/chat", label: "Customer Chat", icon: MessageSquare },
       { to: "/investigations", label: "Live Investigations", icon: Activity },
