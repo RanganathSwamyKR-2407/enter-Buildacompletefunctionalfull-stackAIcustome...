@@ -12,7 +12,7 @@ const AI_BASE = "https://api.enter.pro/code/api/v1/ai/chat/completions";
 const ENTER_PROJECT_ID = "774223bb88c54f7c9c0176a4946bc05f";
 const MODEL = "deepseek/deepseek-v4-flash";
 
-const TIMEOUT_MS = 20000;
+const TIMEOUT_MS = 12000;
 
 async function chatJSON(
   system: string,

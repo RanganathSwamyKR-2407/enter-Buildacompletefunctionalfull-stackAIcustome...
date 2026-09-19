@@ -24,6 +24,58 @@ export default function Chat() {
   const [customerSearch, setCustomerSearch] = useState("");
   const [bubbles, setBubbles] = useState<ChatBubble[]>([]);
   const [sending, setSending] = useState(false);
+  const [pollTarget, setPollTarget] = useState<{
+    liveId: string;
+    conversationId: string | null;
+    caseId: string;
+    caseUuid: string;
+    sentAt: number;
+  } | null>(null);
+  const [pollUntil, setPollUntil] = useState(0);
+
+  // Poll the persisted conversation until the AI reply for the current
+  // complaint arrives (the pipeline may complete even if the browser
+  // connection was reset mid-flight).
+  useEffect(() => {
+    if (!pollTarget || !pollTarget.conversationId) return;
+    if (Date.now() > pollUntil) {
+      setPollTarget(null);
+      return;
+    }
+    const timer = setInterval(async () => {
+      if (Date.now() > pollUntil) {
+        clearInterval(timer);
+        setPollTarget(null);
+        return;
+      }
+      const { data } = await supabase
+        .from("resolveai_messages")
+        .select("*")
+        .eq("conversation_id", pollTarget.conversationId)
+        .order("created_at", { ascending: true });
+      const reply = (data ?? [] as Message[]).filter(
+        (m) => m.role === "ai" && m.content && m.content.trim().length > 0 &&
+          new Date(m.created_at).getTime() >= pollTarget.sentAt - 5000,
+      ).pop();
+      if (reply) {
+        clearInterval(timer);
+        setBubbles((prev) => [
+          ...prev.filter((b) => b.id !== pollTarget.liveId),
+          {
+            id: `a-${Date.now()}`,
+            role: "assistant",
+            content: reply.content,
+            status: "COMPLETED",
+            caseId: pollTarget.caseId,
+            caseUuid: pollTarget.caseUuid,
+            investigationLink: pollTarget.caseUuid ? `/investigations/${pollTarget.caseUuid}` : undefined,
+          },
+        ]);
+        setPollTarget(null);
+      }
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [pollTarget, pollUntil]);
 
   useEffect(() => {
     setCustomerId(customerId);
@@ -156,41 +208,28 @@ export default function Chat() {
         },
       ]);
       // Phase 2 — continue: run the full pipeline (events stream to the
-      // Glass Box via realtime). A hard timeout prevents the UI from ever
-      // appearing stuck; the live investigation keeps running server-side.
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 100000);
-      try {
-        const res = await api.chatContinue(started.case_uuid, started.conversation_id, text, controller.signal);
-        setBubbles((prev) => [
-          ...prev.filter((b) => b.id !== liveId),
-          {
-            id: `a-${Date.now()}`,
-            role: "assistant",
-            content: res.reply,
-            status: `${res.status} · ${res.resolution_status ?? ""}`,
-            caseId: res.case_id,
-            caseUuid: res.case_uuid,
-            investigationLink: res.case_uuid ? `/investigations/${res.case_uuid}` : undefined,
-          },
-        ]);
-      } finally {
-        clearTimeout(timer);
-      }
+      // Glass Box via realtime). The call is fire-and-forget so a slow or
+      // reset connection can never block the chat: the pipeline finishes
+      // server-side and the AI reply is persisted to the conversation, which
+      // we poll for below.
+      void api.chatContinue(started.case_uuid, started.conversation_id, text).catch(() => {
+        // Pipeline continues server-side; the reply will be found by polling.
+      });
+      setPollTarget({
+        liveId,
+        conversationId: started.conversation_id ?? null,
+        caseId: liveCaseId,
+        caseUuid: liveUuid,
+        sentAt: Date.now(),
+      });
+      setPollUntil(Date.now() + 90000);
     } catch (e) {
-      const aborted = e instanceof Error && e.name === "AbortError";
       setBubbles((prev) => [
         ...prev,
         {
           id: `e-${Date.now()}`,
           role: "assistant",
-          content: aborted
-            ? "Investigation is still running — open the live console to watch it complete."
-            : `An error occurred: ${e instanceof Error ? e.message : String(e)}`,
-          status: aborted ? "STILL PROCESSING" : undefined,
-          caseId: aborted ? liveCaseId : undefined,
-          caseUuid: aborted ? liveUuid : undefined,
-          investigationLink: aborted && liveUuid ? `/investigations/${liveUuid}` : undefined,
+          content: `Unable to register your complaint. Please try again. (${e instanceof Error ? e.message : String(e)})`,
         },
       ]);
     } finally {
