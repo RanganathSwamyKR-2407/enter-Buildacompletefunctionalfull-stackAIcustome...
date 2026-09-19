@@ -1,4 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { useCustomers, useCases } from "@/hooks/useData";
 import { CaseTable, filterCases, type QueueFilters } from "@/components/case-table";
 import { PageHeader, TableSkeleton, EmptyState } from "@/components/widgets";
@@ -13,7 +15,28 @@ const EMPTY_FILTERS: QueueFilters = {};
 export default function Queue() {
   const { data: cases, isLoading, isError, refetch } = useCases();
   const { data: customers } = useCustomers();
+  const queryClient = useQueryClient();
   const [filters, setFilters] = useState<QueueFilters>(EMPTY_FILTERS);
+
+  // Realtime: new/updated complaints appear in the queue automatically.
+  useEffect(() => {
+    const channel = supabase
+      .channel("queue-live")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "resolveai_cases" },
+        () => void queryClient.invalidateQueries({ queryKey: ["cases"] }),
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "resolveai_cases" },
+        () => void queryClient.invalidateQueries({ queryKey: ["cases"] }),
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   const customerMap = useMemo(() => {
     const m = new Map<string, Customer>();

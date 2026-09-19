@@ -1892,6 +1892,16 @@ export async function runLifecycle(
     const baseMessage = message || ex.message_text || "";
     // Ensure at least one customer message exists for the pipeline.
     if (!baseMessage) throw new Error("message_required");
+    // Resuming an active case with a new message: persist this turn's
+    // message too (started via earlyReturn), but not on plain "continue".
+    if (req.earlyReturn && convoUuid) {
+      await db.from("resolveai_messages").insert({
+        conversation_id: convoUuid,
+        role: "customer",
+        content: message,
+      });
+      await db.from("resolveai_cases").update({ message_text: message }).eq("id", caseUuid);
+    }
   } else {
     if (!convoUuid) {
       const { data: newConvo } = await db
@@ -2953,6 +2963,76 @@ async function handleChat(token: string | null, body: Record<string, unknown>): 
     );
   }
 
+  // ---------------------------------------------------------------------
+  // Complaint detection (deterministic; LLM may refine but cannot bypass).
+  // Non-complaint chatter (greetings, thanks, FAQs) replies without
+  // creating a case. Follow-ups on the same active issue attach to the
+  // existing case instead of creating duplicates.
+  // ---------------------------------------------------------------------
+  const INFORMATIONAL = [
+    /^hi\b/, /^hey\b/, /^hello\b/, /^good (morning|afternoon|evening)/i,
+    /\bthank/i, /\bok(ay)?\b/i, /support hours/i, /office hours/i,
+    /business hours/i, /what are your hours/i, /how (do|can) i contact/i,
+    /speak to a human/i, /talk to (an? )?(agent|person|human)/i,
+    /explain your (refund|return|shipping|cancellation) policy/i,
+    /(refund|return|cancellation) policy/i, /is there a (phone )?number/i,
+  ];
+  const det = classifyMessage(message);
+  const isInformational = INFORMATIONAL.some((re) => re.test(message));
+  const isComplaint = !isInformational && det.intentScore >= 1;
+
+  // Most recent active (non-resolved, non-closed) case for this customer.
+  const { data: activeRows } = await db
+    .from("resolveai_cases")
+    .select("id, case_id, conversation_id, intent, status")
+    .eq("customer_id", customerId)
+    .in("status", ["new", "investigating", "action_required", "action_failed", "verifying", "automation_paused"])
+    .order("created_at", { ascending: false })
+    .limit(5);
+  const activeCase = activeRows && activeRows.length > 0
+    ? (activeRows[0] as { id: string; case_id: string; conversation_id: string | null; intent: string | null; status: string })
+    : null;
+
+  if (!isComplaint) {
+    // Persist the turn + reply in the conversation; no case is created.
+    const { data: openConvo } = await db
+      .from("resolveai_conversations")
+      .select("id")
+      .eq("customer_id", customerId)
+      .eq("status", "active")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    let convoId = openConvo ? (openConvo as { id: string }).id : null;
+    if (!convoId) {
+      const { data: nc } = await db
+        .from("resolveai_conversations")
+        .insert({ customer_id: customerId, status: "active" })
+        .select("id")
+        .single();
+      convoId = (nc as { id: string }).id;
+    }
+    const reply =
+      det.intentScore === 0
+        ? "Hi! I'm the ResolveAI support assistant. If you're reporting an issue with an order, payment, delivery or your account, describe it and I'll investigate it right away."
+        : "I can help with that. If this is about a specific order, payment or delivery, tell me a little more and I'll investigate the records and take the appropriate action.";
+    await db.from("resolveai_messages").insert([
+      { conversation_id: convoId, role: "customer", content: message },
+      { conversation_id: convoId, role: "ai", content: reply },
+    ]);
+    return jsonResponse({
+      ok: true,
+      kind: "reply",
+      reply,
+      case_id: activeCase?.case_id ?? null,
+      case_uuid: activeCase?.id ?? null,
+      intent: det.intentScore > 0 ? det.intent : "general",
+    });
+  }
+
+  // Complaint. Decide: resume the active case or create a new one.
+  const shouldStart = body.start_only === true || !body.case_uuid;
+  const useExisting = Boolean(activeCase) && shouldStart;
   const result = await runLifecycle(db, {
     customerId,
     message,
@@ -2961,12 +3041,22 @@ async function handleChat(token: string | null, body: Record<string, unknown>): 
     fast: body.fast === true,
     skipLlm: body.skipLlm === true,
     earlyReturn: body.start_only === true,
-    existingCaseUuid: body.case_uuid ? String(body.case_uuid) : undefined,
-    existingConversationUuid: body.conversation_id ? String(body.conversation_id) : null,
+    existingCaseUuid: useExisting
+      ? activeCase!.id
+      : body.case_uuid
+        ? String(body.case_uuid)
+        : undefined,
+    existingConversationUuid: useExisting
+      ? activeCase!.conversation_id
+      : body.conversation_id
+        ? String(body.conversation_id)
+        : null,
   });
 
   return jsonResponse({
     ok: true,
+    kind: body.start_only === true ? "case_started" : "case_updated",
+    resumed: useExisting,
     case_id: result.caseId,
     case_uuid: result.caseUuid,
     conversation_id: result.conversationUuid,

@@ -346,10 +346,13 @@ export interface ChatResult {
 
 export interface ChatStartResult {
   ok: boolean;
+  kind?: "reply" | "case_started" | "case_updated";
+  resumed?: boolean;
   case_id: string;
   case_uuid: string;
   conversation_id?: string | null;
   status: string;
   resolution_status?: string | null;
   intent?: string;
+  reply?: string;
 }

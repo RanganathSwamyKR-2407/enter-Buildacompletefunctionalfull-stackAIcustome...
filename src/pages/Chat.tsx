@@ -117,9 +117,26 @@ export default function Chat() {
     setSending(true);
     setBubbles((prev) => [...prev, { id: `u-${Date.now()}`, role: "user", content: text }]);
     try {
-      // Phase 1 — start: create the case + first investigation events and
-      // return immediately so the live investigation can be opened mid-flight.
-      const started = await api.chatStart(text, customerIdState ?? undefined);
+      // Chat entry: the backend detects complaints vs. normal chatter.
+      const started = await api.chatSend(text, customerIdState ?? undefined);
+
+      if (started.kind === "reply") {
+        // Not a complaint — conversational reply, no case created.
+        setBubbles((prev) => [
+          ...prev,
+          {
+            id: `a-${Date.now()}`,
+            role: "assistant",
+            content: started.reply ?? "How can I help?",
+            status: started.case_id ? undefined : undefined,
+            caseId: started.case_id || undefined,
+            caseUuid: started.case_uuid || undefined,
+            investigationLink: started.case_uuid ? `/investigations/${started.case_uuid}` : undefined,
+          },
+        ]);
+        return;
+      }
+
       const liveId = `live-${Date.now()}`;
       const liveCaseId = started.case_id;
       const liveUuid = started.case_uuid;
@@ -128,8 +145,10 @@ export default function Chat() {
         {
           id: liveId,
           role: "assistant",
-          content: "Investigation started — opening live pipeline.",
-          status: "INVESTIGATION IN PROGRESS",
+          content: started.resumed
+            ? "Continuing the investigation for this case."
+            : "Investigation started — opening live pipeline.",
+          status: started.resumed ? "CONTINUING CASE" : "INVESTIGATION IN PROGRESS",
           caseId: liveCaseId,
           caseUuid: liveUuid,
           investigationLink: liveUuid ? `/investigations/${liveUuid}` : undefined,

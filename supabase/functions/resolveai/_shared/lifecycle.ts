@@ -129,6 +129,16 @@ export async function runLifecycle(
     const baseMessage = message || ex.message_text || "";
     // Ensure at least one customer message exists for the pipeline.
     if (!baseMessage) throw new Error("message_required");
+    // Resuming an active case with a new message: persist this turn's
+    // message too (started via earlyReturn), but not on plain "continue".
+    if (req.earlyReturn && convoUuid) {
+      await db.from("resolveai_messages").insert({
+        conversation_id: convoUuid,
+        role: "customer",
+        content: message,
+      });
+      await db.from("resolveai_cases").update({ message_text: message }).eq("id", caseUuid);
+    }
   } else {
     if (!convoUuid) {
       const { data: newConvo } = await db

@@ -46,8 +46,10 @@ export const api = {
   chat: (message: string, customerId?: string, fast?: boolean) =>
     invoke<ChatResult>({ route: "chat", message, customer_id: customerId, fast: fast === true }),
 
-  /** Live two-phase flow (start): create the case + first investigation events, return immediately. */
-  chatStart: (message: string, customerId?: string) =>
+  /** Chat entry point: detects complaints vs chatter. Non-complaints get a
+   * reply without a case; complaints return case_started (new or resumed
+   * active case) so the caller can continue the live pipeline. */
+  chatSend: (message: string, customerId?: string) =>
     invoke<ChatStartResult>({ route: "chat", message, customer_id: customerId, start_only: true }),
 
   /** Live two-phase flow (continue): run the full pipeline on an existing case, streaming events via realtime. */
